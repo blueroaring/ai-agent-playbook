@@ -193,7 +193,9 @@ const tools = {
     if (!urlRes.ok) return { 结果: `找不到远程 ${remote}`, 输出: urlRes.output }
 
     const url = urlRes.output.trim()
-    const args = ['push']
+    // -c 是 git 的全局选项，必须排在子命令之前：写成 `git push -c ...` 会报
+    // "unknown switch `c`"。所以先收集全局选项，最后才放 'push'。
+    const args = []
     let cleanup = null
     if (/^https:\/\/(www\.)?github\.com\//i.test(url) && token) {
       // 凭据经临时 credential store 文件传入：不进 argv、不写 .git/config，用完即删。
@@ -203,6 +205,7 @@ const tools = {
       args.push('-c', `credential.helper=store --file=${file.replace(/\\/g, '/')}`)
       cleanup = () => { try { rmSync(dir, { recursive: true, force: true }) } catch {} }
     }
+    args.push('push')
     if (forceWithLease) args.push('--force-with-lease')
     if (setUpstream) args.push('-u')
     args.push(remote)

@@ -1,6 +1,6 @@
 # 经验条目索引
 
-11 篇。**不要通读**——按症状或主题检索。
+12 篇。**不要通读**——按症状或主题检索。
 
 每篇结构统一：`症状 → 根因 → 解法 → 验证`，并在小节标题上标注环境适用范围：
 
@@ -35,6 +35,11 @@
 | `git push` 报 403 `Permission to ... denied to <你>` | [11](11-http-network-troubleshooting.md) 第 8 节 |
 | 改了配置/插件但行为没变 | [07](07-dsh-harness-internals.md) |
 | patch 配置写了但不生效 / warning | [07](07-dsh-harness-internals.md) |
+| **桥接源码明明改对了，工具仍报旧错误** | [04](04-mcp-stdio-bridge-authoring.md) 第 8 节 |
+| 学术 API 429 / 反爬挑战页 / 抓不到论文 | [12](12-literature-source-apis.md) |
+| 多源聚合后同一篇论文重复出现 | [12](12-literature-source-apis.md) 第 7 节 |
+| 写入外部服务/papers 库后立刻查重查不到 | [12](12-literature-source-apis.md) 第 8 节 |
+| 用标题去学术库精确匹配，却匹配错了文章 | [12](12-literature-source-apis.md) 第 5 节 |
 
 ## 按主题读
 
@@ -51,6 +56,7 @@
 | [09](09-godot-automation.md) | Godot 自动化 | 无头/录帧/编辑器桥/端口探测 |
 | [10](10-zotero-automation.md) | Zotero 文献库读写 | 锁库读、API 写、字段索引 |
 | [11](11-http-network-troubleshooting.md) | HTTP / 网络排查顺序 | 换客户端比换网络先试 |
+| [12](12-literature-source-apis.md) | 学术数据源 API 的真实行为 | Scholar/arXiv/dblp/OpenAlex/Crossref 的坑与 Zotero 写入 |
 
 ## 阅读顺序建议
 
