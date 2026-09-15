@@ -202,6 +202,50 @@ git -c credential.helper= push --dry-run origin <BRANCH>
 
 **读通过 + 写 403 ⇒ 凭据的权限问题。** 这是本文档最有价值的一条判据。
 
+### ④ 终极判据：用 API 探针直接问 token"你能写吗"
+
+`git push` 的失败信息会混进网络、代理、TLS、git 客户端配置等因素。**想要一个不受这些干扰的答案**，
+就绕开 git，直接调 API 做一个"需要写权限、但不产生任何可见副作用"的操作：
+
+```bash
+# 创建 blob 需要 Contents:write；它只产生一个悬空对象，没有任何 ref 指向它 → 完全无害
+curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Accept: application/vnd.github+json" \
+  -H "Content-Type: application/json" \
+  -d '{"content":"probe\n","encoding":"utf-8"}' \
+  https://api.github.com/repos/<OWNER>/<REPO>/git/blobs
+```
+
+| 返回 | 含义 |
+|---|---|
+| `201` | ✅ token 有 `Contents: write` —— 问题在链路上，去查代理/TLS |
+| `403` + `Resource not accessible by personal access token` | ❌ token **没有**写权限 —— 别再折腾网络了 |
+| `404` | token 的**仓库访问范围**里没有这个仓库 |
+
+> 📌 **先确定"权限"，再查"链路"。** 顺序反了就会在两层之间来回横跳，
+> 每一次"换参数重试"都会产生一个看起来像新问题的现象。
+
+### ⚠️ 代理会制造假象（很容易把你带偏）
+
+如果机器上配了本地代理（`git config --global http.proxy`，例如 `127.0.0.1:7890` 这类），
+推送可能表现为**连接层错误而不是 403**：
+
+```
+fatal: unable to access '...': Recv failure: Connection was reset
+OpenSSL SSL_read: error:0A000126:SSL routines::unexpected eof while reading, errno 10004
+```
+
+**同一条命令加 `-c http.version=HTTP/1.1` 之后，真正的 `403` 就露出来了。**
+
+```bash
+# 排查用：临时绕过代理
+git -c "http.https://github.com.proxy=" push --dry-run origin <BRANCH>
+```
+
+**判据**：*"换个传输参数就变成另一种错误" ⇒ 你看到的可能不是根因，而是中间层。*
+先把权限那一层钉死（用上面的 API 探针），再看链路。
+
 ### ⚠️ 陷阱：API 的 `permissions` 字段会骗你
 
 ```bash
