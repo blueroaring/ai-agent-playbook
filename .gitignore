@@ -1,0 +1,18 @@
+# 本地状态与运行产物：绝不发布
+.local/
+*.local.*
+
+# 泄露扫描的报告（含被命中的原文，禁止入库）
+redaction-report.txt
+PENDING-REVIEW.md
+
+# 自测运行产物（输入 selftest.jsonl 要发布，输出不要）
+_selftest.out.txt
+_selftest.err.txt
+
+# 常见噪声
+Thumbs.db
+desktop.ini
+*.log
+node_modules/
+.DS_Store

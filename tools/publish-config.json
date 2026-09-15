@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "comment": [
+    "Configuration for tools/publish.ps1.",
+    "Deliberately contains NO secrets and NO account names: the git remote URL lives",
+    "in .git/config (never published), and credentials live in a file outside the repo.",
+    "See tools/README.md."
+  ],
+
+  "remote": "origin",
+  "branch": "main",
+
+  "gitAuthorName": "agent-playbook-bot",
+  "gitAuthorEmail": "agent-playbook-bot@users.noreply.github.com",
+
+  "commitPrefix": "chore(publish)",
+
+  "journalWatch": "agent-memory/journal.md",
+
+  "recipeSync": [
+    { "from": "git-bridge/git-mcp.mjs",                                  "to": "recipes/git-mcp/git-mcp.mjs" },
+    { "from": "zotero-bridge/zotero-mcp.mjs",                            "to": "recipes/zotero-mcp/zotero-mcp.mjs" },
+    { "from": "godot-bridge/godot-mcp.mjs",                              "to": "recipes/godot-mcp/godot-mcp.mjs" },
+    { "from": "godot-bridge/godot-addon/addons/dsh_bridge/dsh_bridge.gd", "to": "recipes/godot-mcp/godot-addon/addons/dsh_bridge/dsh_bridge.gd" },
+    { "from": "godot-bridge/godot-addon/addons/dsh_bridge/plugin.cfg",    "to": "recipes/godot-mcp/godot-addon/addons/dsh_bridge/plugin.cfg" },
+    { "from": "phone-bridge/phone-gateway.mjs",                          "to": "recipes/phone-gateway/phone-gateway.mjs" },
+    { "from": "phone-bridge/start-phone-access.ps1",                     "to": "recipes/windows-launcher/start-phone-access.ps1" },
+    { "from": "phone-bridge/show-phone-qr.ps1",                          "to": "recipes/windows-launcher/show-phone-qr.ps1" }
+  ]
+}

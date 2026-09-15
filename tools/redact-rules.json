@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "comment": [
+    "Leak-scan rules for tools/publish.ps1. Hitting a DENY rule blocks the push.",
+    "This file is public on purpose: the patterns are generic and documenting them",
+    "makes the sanitization guarantee auditable. Machine-specific literal secrets",
+    "(account names, LAN IPs, hostnames) must NOT be listed here -- they live in",
+    ".local/sensitive-terms.txt, which is gitignored."
+  ],
+
+  "skipExtensions": [
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".bmp",
+    ".zip", ".gz", ".7z", ".rar", ".exe", ".dll", ".pdf",
+    ".woff", ".woff2", ".ttf", ".otf", ".mp3", ".ogg", ".wav",
+    ".sqlite", ".db", ".lock"
+  ],
+
+  "deny": [
+    {
+      "id": "windows-user-path",
+      "regex": "[A-Za-z]:\\\\Users\\\\(?!<)",
+      "hint": "Absolute Windows user path. Replace with a placeholder like <DSH_HOME> / <WORKSPACE>, or derive it at runtime from $env:USERPROFILE / os.homedir()."
+    },
+    {
+      "id": "unix-home-path",
+      "regex": "/(?:home|Users)/(?!<)[a-z0-9._-]{2,}/",
+      "hint": "Absolute home path. Same treatment as windows-user-path."
+    },
+    {
+      "id": "private-ip",
+      "regex": "\\b(?:10|172|192)\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\b",
+      "hint": "Private/LAN IP address. Replace with <LAN_IP>. If it is a documentation example, use an RFC 5737 address (192.0.2.x / 198.51.100.x / 203.0.113.x)."
+    },
+    {
+      "id": "github-token",
+      "regex": "\\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,})\\b",
+      "hint": "A GitHub token literal. NEVER publish one. Also rotate it if it was ever committed."
+    },
+    {
+      "id": "openai-style-key",
+      "regex": "\\bsk-[A-Za-z0-9_-]{20,}\\b",
+      "hint": "Looks like an API key literal."
+    },
+    {
+      "id": "aws-access-key",
+      "regex": "\\bAKIA[0-9A-Z]{16}\\b",
+      "hint": "Looks like an AWS access key id."
+    },
+    {
+      "id": "private-key-block",
+      "regex": "-----BEGIN [A-Z ]*PRIVATE KEY-----",
+      "hint": "Embedded private key."
+    }
+  ],
+
+  "warn": [
+    {
+      "id": "email-address",
+      "regex": "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}",
+      "hint": "Email address. Fine if it is a doc placeholder (you@example.com); otherwise strip it."
+    },
+    {
+      "id": "secret-assignment",
+      "regex": "(?i)(password|passwd|secret|api[_-]?key|access[_-]?token)\\s*[:=]\\s*[\"'][^\"']{8,}[\"']",
+      "hint": "Looks like a hard-coded secret assignment. Usually a doc example, but check it."
+    },
+    {
+      "id": "personal-name-marker",
+      "regex": "(?i:author|owner|maintainer)\\s*[:=]\\s*[\"']?[A-Z][a-z]{2,}",
+      "hint": "Possible personal name attached to a role. Keep the repo free of identity."
+    }
+  ],
+
+  "allowMatch": [
+    "C:\\\\Users\\\\<",
+    "/home/<",
+    "127\\.0\\.0\\.1",
+    "0\\.0\\.0\\.0",
+    "10\\.0\\.0\\.1",
+    "192\\.168\\.1\\.1",
+    "192\\.0\\.2\\.",
+    "198\\.51\\.100\\.",
+    "203\\.0\\.113\\.",
+    "example\\.com",
+    "example\\.org",
+    "noreply\\.github\\.com",
+    "you@example",
+    "user@example",
+    "<LAN_IP>",
+    "<DSH_HOME>",
+    "<WORKSPACE>",
+    "<user>",
+    "<yourapp>",
+    "<app>"
+  ]
+}

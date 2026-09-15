@@ -1,0 +1,23 @@
+# Machine-specific sensitive terms -- TEMPLATE (published; copy it, do not edit it).
+#
+# Setup on a new machine:
+#   Copy-Item tools\sensitive-terms.example.txt .local\sensitive-terms.txt
+#   then replace the made-up entries below with YOUR OWN literals.
+#
+# .local/ is gitignored, so the filled-in file never leaves your machine.
+# This template stays in tools/ so that a fresh clone is self-documenting.
+#
+# publish.ps1 refuses to push if any of these strings appears in a publishable file.
+# One term per line. Blank lines and lines starting with # are ignored.
+#
+# Keep every term as LONG as you can stand. Very short terms (a 3-4 letter given
+# name, a common word) produce false positives that block your publishes.
+# Prefer the full account handle, the full LAN address, the numeric account id.
+#
+# Example entries (all made up -- replace them):
+#
+#   my-github-handle
+#   192.0.2.77
+#   my-hostname
+#   12345678
+#   MyProjectCodename
