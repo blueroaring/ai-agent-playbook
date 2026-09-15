@@ -40,6 +40,9 @@
 | 多源聚合后同一篇论文重复出现 | [12](12-literature-source-apis.md) 第 7 节 |
 | 写入外部服务/papers 库后立刻查重查不到 | [12](12-literature-source-apis.md) 第 8 节 |
 | 用标题去学术库精确匹配，却匹配错了文章 | [12](12-literature-source-apis.md) 第 5 节 |
+| **验证"打开了网页/窗口"时证据全是假的** | [01](01-verification-discipline.md) 事故 6 |
+| 用户手改一次配置文件，程序就起不来了（报第 1 行第 1 列） | [02](02-windows-powershell51.md) 第 2 节 |
+| `.ps1` / `.bat` 里中文注释让脚本莫名崩掉 | [02](02-windows-powershell51.md) 第 1、9.1 节 |
 
 ## 按主题读
 

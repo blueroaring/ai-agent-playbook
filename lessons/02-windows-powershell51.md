@@ -91,11 +91,53 @@ Set-Content -Path out.json -Value $json -Encoding utf8
 const text = fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, '');
 ```
 
+### 反向坑：**你自己的程序读配置时也必须容忍 BOM** `[通病]`
+
+这是同一枚硬币的另一面，而且更容易漏：你不可能禁止用户用记事本编辑 `config.json`。
+
+**症状**：程序原本好好的，用户用记事本（或你的另一段 PowerShell 脚本）改了一次配置，
+程序就再也起不来：
+
+```
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+```
+
+**根因**：文件开头被写入了 `EF BB BF`。`json.load(f, encoding="utf-8")` 不会跳过 BOM，
+于是第 1 个字符就解析失败 —— 而报错信息只说"第 1 行第 1 列"，看起来像 JSON 写错了，极难联想。
+
+**解法**（两件事一起做）：
+
+```python
+# 1) 用 utf-8-sig 读：它在有 BOM 时自动剥离，没有 BOM 时行为与 utf-8 完全一致
+with path.open("r", encoding="utf-8-sig") as fh:
+    text = fh.read()
+
+# 2) JSON 语法错误要给出**人话**，不要抛裸栈
+try:
+    return json.loads(text) or {}
+except json.JSONDecodeError as exc:
+    raise SystemExit(
+        f"配置文件 {path} 不是合法 JSON：{exc}\n"
+        f"提示：常见原因是漏逗号、用了中文引号，或末尾多了逗号。"
+    ) from exc
+```
+
+⚠️ 顺带一个陷阱：**你自己写文件时不要用 `Set-Content -Encoding utf8`**（PS 5.1 会加 BOM），
+也不要用带 BOM 的写入方式生成给别人读的 JSON。写文件请用无 BOM 的方式
+（Python 的 `open(..., encoding="utf-8")`、Node 的 `writeFileSync`、或 write 工具）。
+
 ### 验证
 
 ```powershell
 Format-Hex .\out.json | Select-Object -First 1     # 看是否以 EF BB BF 开头
 node -e "console.log(JSON.parse(require('fs').readFileSync('out.json','utf8')))"
+```
+
+BOM 容错的证伪式验证（**别只读一遍自己的文件**，要**故意造一个带 BOM 的副本**）：
+
+```python
+tmp.write_bytes(b"\xef\xbb\xbf" + real_config.read_bytes())
+assert Config.load(tmp).get("app.port") == 8848   # 能读出来才算通过
 ```
 
 ---
@@ -339,3 +381,42 @@ $ErrorActionPreference = $saved
 - [ ] 需要观察 HTTP 3xx 吗？（用 `HttpWebRequest`，不用 `Invoke-WebRequest`）
 - [ ] 需要脱离进程树启动吗？（**别带** `-ExecutionPolicy Bypass`）
 - [ ] 脚本的"成功"判定，用的是**产物**还是**日志**？
+
+### 9.1 把"纯 ASCII"做成**机械校验**，不要靠记忆 `[通病]`
+
+第 1 节这条规则的危险之处在于：**中文写在注释里往往不出事**（`REM` / `#` 行被跳过），
+于是你误以为"没问题"，直到某天它出现在**字符串或用法示例**里，整个脚本才崩。
+只靠"我记住了"必然会复发 —— 正确做法是写完立刻扫一遍字节。
+
+```powershell
+# 任何 .ps1 / .bat 写完都跑一次：输出必须是 0
+$b = [System.IO.File]::ReadAllBytes(".\scripts\foo.ps1")
+"non-ascii = " + (@($b | Where-Object { $_ -gt 127 }).Count)
+
+# 定位到具体行（比看总数有用）
+$lines = [System.IO.File]::ReadAllLines(".\scripts\foo.ps1")
+for ($i = 0; $i -lt $lines.Count; $i++) {
+  $bad = @([System.Text.Encoding]::UTF8.GetBytes($lines[$i]) | Where-Object { $_ -gt 127 })
+  if ($bad.Count) { "line $($i+1): $($lines[$i])" }
+}
+```
+
+**真实复发记录**：这条规则早就写在本库里，我依然在同一台机器上又犯了两次 ——
+一次是用法示例里写了 `-Name "文献雷达"`（12 个非 ASCII 字节，藏在注释里所以没崩，
+纯属运气），一次是 `.bat` 里把中文 `echo` 放在了 `chcp 65001` **之前**
+（cmd 按当前 OEM 代码页解码，中文在 chcp 生效前就已经是乱码）。
+
+`.bat` 的额外注意：`chcp 65001` **只对它之后的输出生效**，所以
+**第一行到 chcp 之间不能有任何非 ASCII 内容**（注释也不行）。最省事的做法还是全 ASCII。
+
+### 9.2 语法检查 + ASCII 检查要一起做
+
+```powershell
+$errors = $null
+[System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$null, [ref]$errors) | Out-Null
+if ($errors) { $errors | ForEach-Object { $_.Message } } else { "syntax OK" }
+```
+
+**注意**：`ParseFile` 报 OK **不代表**在目标 shell 上能跑 ——
+它按当前会话的解码方式读文件。`ParseFile` OK + 字节扫描 0 非 ASCII，
+两项都过才算真的安全。
