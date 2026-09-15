@@ -66,8 +66,8 @@
     },
     {
       "id": "personal-name-marker",
-      "regex": "(?i:author|owner|maintainer)\\s*[:=]\\s*[\"']?[A-Z][a-z]{2,}",
-      "hint": "Possible personal name attached to a role. Keep the repo free of identity."
+      "regex": "(?i:author|owner|maintainer)[\"']?\\s*[:=]\\s*[\"']?[A-Z][a-z]{2,}[\"']?\\s*$",
+      "hint": "Possible personal name attached to a role. Keep the repo free of identity. (Anchored to end-of-line on purpose: code like `$owner = Get-Foo` is not a name.)"
     }
   ],
 

@@ -12,12 +12,26 @@
 
 ## 你要改的地方
 
-| 位置 | 改成什么 |
-|---|---|
-| `SERVER_NAME` | 你的服务名。宿主通常把工具暴露为 `mcp__<serverName>__<tool>`，**改它等于改所有调用点** |
-| `TOKEN_FILE` 默认值 | 你的凭据路径。保持 `~/.<yourapp>/<file>` 的形态，这样换机器不用改代码 |
-| `TOOLS` 对象 | 换成你真实的能力。**先删掉三个示例再写**，别留着 |
-| `TRACE_FILE` | 调试落盘位置，默认当前目录 |
+**① 源码常量** —— 在 `server.mjs` 顶部，直接改它
+
+| 常量 | 默认值 | 说明 |
+|---|---|---|
+| `SERVER_NAME` | `'minimal'` | 你的服务名。宿主通常把工具暴露为 `mcp__<serverName>__<tool>`，**改它等于改所有调用点** |
+| `TOKEN_FILE` | `~/.bridge/token` | 凭据路径。保持 `~/.<yourapp>/<file>` 的形态，换机器不用改代码 |
+| `TRACE_FILE` | `<cwd>/bridge-trace.jsonl` | 调试落盘位置 |
+| `TOOLS` | 3 个示例 | 换成你真实的能力。**先删掉三个示例再写**，别留着 |
+
+**② 环境变量** —— 用来覆盖上面的常量，**不用改源码**
+
+| 变量 | 覆盖谁 | 说明 |
+|---|---|---|
+| `BRIDGE_SERVER_NAME` | `SERVER_NAME` | 服务名 |
+| `BRIDGE_TOKEN_FILE` | `TOKEN_FILE` | 凭据路径 |
+| `BRIDGE_TRACE_FILE` | `TRACE_FILE` | 落盘位置 |
+| `BRIDGE_DEBUG` | — | 设为 `1` 才开启请求/响应落盘（默认关闭） |
+
+> ⚠️ 源码里的常量名（`SERVER_NAME`）和你能设的环境变量名（`BRIDGE_SERVER_NAME`）**不是同一个字符串**。
+> 前者是 JS 变量，后者是它的覆盖入口。改的时候别搞混。
 
 ---
 

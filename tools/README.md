@@ -109,11 +109,30 @@ Get-Content .local\publish.log -Tail 20
 
 ---
 
+## 打包 / 归档前必读
+
+**不要把本目录整个 zip 出去、也不要 `git add -f`。**
+
+有两个文件**故意含本机绝对路径**（它们是我的排查产物，不是发布内容）：
+
+| 文件 | 含有什么 |
+|---|---|
+| `.local/publish.log` | 每轮运行都记了仓库与本机的完整绝对路径 |
+| `.local/leak-report.txt` | 命中项的**原文**，那正是要给人看的 |
+
+两者都被 `.gitignore` 覆盖，**`git push` 永远不会带上它们**（`git ls-files -o` 可自行核对）。
+但**打包成一个压缩包分发**会连它们一起带走。
+
+**正确做法**：用 `git clone` / `git archive` / GitHub 的 zip 下载来分发，别直接压缩工作目录。
+测完的自测产物（`_selftest.*.txt`）也请顺手删掉。
+
+---
+
 ## 在另一台机器上复刻
 
 1. `git clone` 本仓库
 2. `Copy-Item tools\sensitive-terms.example.txt .local\sensitive-terms.txt`，填**你自己的**敏感字面量
-3. 设置凭据：`PLAYBOOK_TOKEN_FILE` 指向你的 PAT 文件，或放在 `<DSH_HOME>\github-token`
+3. 设置凭据：把 `$env:PLAYBOOK_TOKEN_FILE` 指向你的 PAT 文件，或把 PAT 放到 `<DSH_HOME>\github-token`
 4. `git remote set-url origin <你的仓库>`（远端地址不入库，只在本机 `.git/config`）
 5. `tools\install-scheduled-task.ps1`
 

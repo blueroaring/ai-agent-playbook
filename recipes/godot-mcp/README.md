@@ -15,25 +15,37 @@
 
 ## 你要改的地方
 
-| 位置 | 改成什么 |
-|---|---|
-| `GODOT_BIN` | Godot 可执行文件路径。**没设的话服务会去猜**（PATH、Steam 库、常见安装位置） |
-| `OUTPUT_DIR` | 录帧/产物目录。默认 `~/.dsh/godot-output` |
-| `STEAM_ROOTS` | Steam 库候选根目录。**如果你不是 Steam 版，直接用 `GODOT_BIN` 更省事** |
-| `BRIDGE_PORT` | 编辑器桥的起始端口（默认 9080） |
+**① 源码常量** —— 在 `godot-mcp.mjs` 顶部
 
-### 环境变量
+| 常量 | 默认值 | 说明 |
+|---|---|---|
+| `OUTPUT_DIR` | `~/.dsh/godot-output` | 录帧与产物目录 |
+| `BRIDGE_PORT` | `9080` | 编辑器桥的**起始**端口 |
+| `STEAM_ROOTS` | 几个常见 Steam 安装位置 | 用来找 Steam 版 Godot。**不是 Steam 版就用 `GODOT_BIN`，别依赖它** |
 
-| 变量 | 说明 |
-|---|---|
-| `GODOT_BIN` | Godot 可执行文件（**强烈建议显式设置**） |
-| `GODOT_PROJECT` | 默认项目目录（省略 `project` 参数时用它） |
-| `GODOT_OUTPUT_DIR` | 产物目录 |
-| `DSH_GODOT_BRIDGE_PORT` | 编辑器桥起始端口 |
+**② 环境变量** —— 覆盖上面的常量，**不用改源码**
+
+| 变量 | 覆盖谁 | 说明 |
+|---|---|---|
+| `GODOT_BIN` | — | Godot 可执行文件全路径。**强烈建议显式设置** |
+| `GODOT_PROJECT` | — | 默认项目目录（省略 `project` 参数时用它） |
+| `GODOT_OUTPUT_DIR` | `OUTPUT_DIR` | 产物目录 |
+| `GODOT_STEAM_ROOTS` | `STEAM_ROOTS`（**追加**） | 额外的 Steam 库根目录，`;` 分隔，如 `D:\Games\Steam;E:\SteamLibrary` |
+| `GODOT_SCAN_ROOTS` | `godot_projects` 的默认扫描根 | `;` 分隔。**不设的话会去扫 `D:\` / `E:\` 和用户主目录**，在大磁盘上很慢 —— 建议显式收窄 |
+| `DSH_GODOT_BRIDGE_PORT` | `BRIDGE_PORT` | 编辑器桥起始端口。**插件端也读同一个变量**（见下） |
+| `DSH_GODOT_BRIDGE_PORT_END` | `起始端口 + 10` | 编辑器桥端口范围上界 |
+
+> **端口是两端协商的**：MCP 侧给插件进程传 `DSH_GODOT_BRIDGE_PORT/_END`，插件在范围内挑第一个
+> 空闲端口并写进 `user://dsh_bridge_port.txt`；MCP 侧**优先读那个文件**。
+> 所以你不必让两边预先约定某个具体数字 —— 固定的端口**迟早**会被别的服务占掉。
 
 ---
 
 ## 20 个工具
+
+工具清单以 `godot-mcp.mjs` 里的 **`SPECS` 数组**为唯一权威。下表为便于阅读做了合并
+（一行可能含多个工具）。**新加实现方法后务必同步补进 `SPECS`** —— 只写实现不注册，
+工具在 `tools/list` 里就不会出现，调用方永远够不到（这个坑本仓库真踩过）。
 
 **CLI 桥（不需要打开编辑器）**
 
@@ -57,10 +69,15 @@
 | `godot_editor_ping` | 心跳：确认插件在、端口是多少 |
 | `godot_editor_scene` | 读**当前编辑中**的场景树 |
 | `godot_editor_selection` | 读当前选中节点及其常用属性 |
-| `godot_editor_node_add` / `_set` / `_delete` | 增 / 改 / 删节点（**全走 UndoRedo，可 Ctrl+Z**） |
-| `godot_editor_play` / `_stop` | 在编辑器里运行 / 停止主场景 |
+| `godot_editor_node_add` | 在当前编辑的场景里新增节点（走 UndoRedo） |
+| `godot_editor_node_set` | 设置节点属性（走 UndoRedo） |
+| `godot_editor_node_delete` | 删除节点（走 UndoRedo） |
+| `godot_editor_play` | 在编辑器里运行主场景 |
+| `godot_editor_stop` | 停止运行 |
 | `godot_editor_reload` | 重新加载当前场景 |
 | `godot_editor_save_scene` | 保存当前场景到磁盘 |
+
+（以上编辑器桥工具**全部走 UndoRedo**，所以用户随时可以 Ctrl+Z 撤销 Agent 的改动。）
 
 ---
 

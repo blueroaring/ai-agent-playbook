@@ -15,7 +15,7 @@
 | [`mcp-bridge-minimal/`](mcp-bridge-minimal/) | **先看这个**。最小可跑的双向 stdio MCP 服务模板，自带断言式自测 | Node 18+ |
 | [`compat-shim/`](compat-shim/) | 旧浏览器内核兼容垫片 + HTML 注入工具 | 无（浏览器 + Node） |
 | [`git-mcp/`](git-mcp/) | Git / GitHub 的 MCP 服务：认证、建仓、提交、推送 | Node 18+ + `git` |
-| [`zotero-mcp/`](zotero-mcp/) | Zotero 文献库读写 MCP 服务（SQLite 快照读 + Web API 写） | Node 18+ |
+| [`zotero-mcp/`](zotero-mcp/) | Zotero 文献库读写 MCP 服务（SQLite 快照读 + Web API 写） | **Node 22+**（用到内置 `node:sqlite`） |
 | [`godot-mcp/`](godot-mcp/) | Godot 自动化 MCP 服务：CLI 桥 + 编辑器插件桥 | Node 18+ + Godot 4.x |
 | [`phone-gateway/`](phone-gateway/) | 局域网反向代理网关：把只绑回环的 GUI 安全地给手机用 | Node 18+ |
 | [`windows-launcher/`](windows-launcher/) | Windows 启动器 / 二维码脚本（配套 phone-gateway） | PowerShell 5.1+，`qrcode` |

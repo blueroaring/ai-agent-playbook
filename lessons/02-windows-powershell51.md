@@ -199,13 +199,14 @@ try {
 | `powershell.exe -Command "..."`（裸命令，不带 Bypass） | ✅ 正常 |
 | `node.exe script.mjs` | ✅ 正常 |
 
-**推测根因**：该机器上的第三方安全软件（当时装着 360 安全卫士）的主动防御拦截了
-"通过 WMI 创建 + 修改执行策略"这个组合特征。**这是推测，不是结论。**
+**推测根因**：**第三方安全软件 / EDR 的主动防御**拦截了"通过 WMI 创建进程 + 修改执行策略"这个组合特征。
+**这是推测，不是结论** —— 换一台机器请按下面的矩阵实测确认。
 
 ### 解法
 
 用 WMI 脱离进程树启动时，**不要带 `-ExecutionPolicy Bypass`**。
-本机 `LocalMachine` 策略是 `RemoteSigned`，本地脚本本来就能跑，Bypass 纯属多余且触发拦截。
+本机 `LocalMachine` 策略是 `RemoteSigned`（这是 Windows 常见默认值），本地脚本本来就能跑，Bypass 纯属多余且触发拦截。
+**换机器请先查 `Get-ExecutionPolicy -List`，别照搬这个结论。**
 
 ```powershell
 $cl = [WmiClass]'Win32_Process'

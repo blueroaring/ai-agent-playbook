@@ -28,7 +28,7 @@
 
 - 机器上通常已经装了 Chrome/Edge，**下载一份 Chromium 是几百 MB 的浪费**
 - 系统浏览器的**版本与你日常一致**——这既可能帮你（复现真实环境），也可能坑你（见 [06](06-legacy-engine-compat-shim.md)）
-- `[本机]` 上 `ms-playwright` 浏览器包**未安装**，走 `--browser chrome` 直接用系统 Chrome（实测 UA `Chrome/152`）
+- `[本机]` 上 `ms-playwright` 浏览器包**未安装**，走 `--browser chrome` 直接用系统 Chrome（版本跟随你已装的那个）
 
 **先探测再假设**：
 

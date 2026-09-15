@@ -16,12 +16,27 @@ extends EditorPlugin
 ##   POST /play              /stop
 ##   POST /reload            重新扫描文件系统
 
-const PORT_RANGE_START := 9080
-const PORT_RANGE_END := 9090
+# Port range. Overridable from the environment without touching the plugin:
+#   DSH_GODOT_BRIDGE_PORT       first port to try     (default 9080)
+#   DSH_GODOT_BRIDGE_PORT_END   last port to try      (default start + 10)
+# The MCP side reads the port this plugin actually bound from PORT_PATH, so the two
+# ends never have to agree on a number in advance -- which is the whole point: a
+# fixed port WILL eventually be taken by some unrelated service.
+const PORT_RANGE_DEFAULT_START := 9080
+const PORT_RANGE_SPAN := 10
 const BIND_ADDR := "127.0.0.1"
 const TOKEN_PATH := "user://dsh_bridge_token.txt"
 const PORT_PATH := "user://dsh_bridge_port.txt"
 const MAX_BODY := 4 * 1024 * 1024
+
+static func _env_int(name: String, fallback: int) -> int:
+	var raw := OS.get_environment(name)
+	if raw == "":
+		return fallback
+	if not raw.is_valid_int():
+		printerr("[dsh_bridge] env %s is not an integer (%s); using %d" % [name, raw, fallback])
+		return fallback
+	return int(raw)
 
 var _server: TCPServer = null
 var _token := ""
@@ -31,13 +46,15 @@ var _buffers := {}   # StreamPeerTCP -> String（累积的请求文本）
 func _enter_tree() -> void:
 	_token = _load_token()
 	_server = TCPServer.new()
+	var range_start := _env_int("DSH_GODOT_BRIDGE_PORT", PORT_RANGE_DEFAULT_START)
+	var range_end := _env_int("DSH_GODOT_BRIDGE_PORT_END", range_start + PORT_RANGE_SPAN)
 	# 端口范围内自动挑一个空闲的：避免上一个编辑器实例的僵尸占用让整条链路失效
-	for candidate in range(PORT_RANGE_START, PORT_RANGE_END + 1):
+	for candidate in range(range_start, range_end + 1):
 		if _server.listen(candidate, BIND_ADDR) == OK:
 			_port = candidate
 			break
 	if _port == 0:
-		printerr("[dsh_bridge] %d-%d 端口全被占用，桥未启动" % [PORT_RANGE_START, PORT_RANGE_END])
+		printerr("[dsh_bridge] no free port in %d-%d -- bridge NOT started. Free one, or set DSH_GODOT_BRIDGE_PORT / DSH_GODOT_BRIDGE_PORT_END to a free range." % [range_start, range_end])
 		_server = null
 		return
 	var pf := FileAccess.open(PORT_PATH, FileAccess.WRITE)

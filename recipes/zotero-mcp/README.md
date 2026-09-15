@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | **适用场景** | 要让 Agent 检索 / 录入 / 整理 Zotero 文献库 |
-| **依赖** | Node 22+（用到内置 `node:sqlite`）。**零第三方依赖** |
+| **依赖** | **Node 22+**（用到内置 `node:sqlite`）。**零第三方依赖** |
 | **文件** | `zotero-mcp.mjs`（单文件，663 行） |
 | **工具数** | 14 个 |
 
@@ -15,20 +15,26 @@
 
 ## 你要改的地方
 
-| 位置 | 改成什么 |
-|---|---|
-| `DATA_DIR` | Zotero 数据目录。默认 `~/Zotero`，可用 `ZOTERO_DATA_DIR` 覆盖 |
-| `KEY_FILE` | Web API key 文件。默认 `~/.dsh/zotero-key` |
-| `LIBRARY_SCOPE` | `user`（个人库）或 `groups/<groupID>` |
+**① 源码常量** —— 在 `zotero-mcp.mjs` 顶部
 
-### 环境变量
-
-| 变量 | 默认 | 作用 |
+| 常量 | 默认值 | 说明 |
 |---|---|---|
-| `ZOTERO_DATA_DIR` | `~/Zotero` | 数据目录（含 `zotero.sqlite` 与 `storage/`） |
-| `ZOTERO_API_KEY` | — | API key（优先于文件） |
-| `ZOTERO_API_KEY_FILE` | `~/.dsh/zotero-key` | key 文件，单行 |
-| `ZOTERO_LIBRARY` | `user` | 库范围 |
+| `DATA_DIR` | `~/Zotero` | Zotero 数据目录 |
+| `KEY_FILE` | `~/.dsh/zotero-key` | Web API key 文件 |
+| `LIBRARY_SCOPE` | `'user'` | `user`（个人库）或 `groups/<groupID>` |
+| `LOCAL_BASE` | `http://127.0.0.1:23119` | Zotero 连接器端口。**改 Zotero 设置时这里要跟着改** |
+
+**② 环境变量** —— 覆盖上面的常量，**不用改源码**
+
+| 变量 | 覆盖谁 | 默认 | 说明 |
+|---|---|---|---|
+| `ZOTERO_DATA_DIR` | `DATA_DIR` | `~/Zotero` | 数据目录（含 `zotero.sqlite` 与 `storage/`） |
+| `ZOTERO_API_KEY_FILE` | `KEY_FILE` | `~/.dsh/zotero-key` | key 文件，单行 |
+| `ZOTERO_API_KEY` | — | — | key 字面量（**优先于文件**，适合临时调试，别写进脚本） |
+| `ZOTERO_LIBRARY` | `LIBRARY_SCOPE` | `user` | 库范围 |
+
+> ⚠️ 源码常量名（`LIBRARY_SCOPE`）与你能设的环境变量名（`ZOTERO_LIBRARY`）**不是同一个字符串**。
+> 前者是 JS 变量，后者是它的覆盖入口。
 
 **key 至少需要 `write` / `files` / `notes` 权限**，只读 key 无法执行写工具。
 

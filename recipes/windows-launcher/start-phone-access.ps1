@@ -87,6 +87,26 @@ function Test-Port([int]$p) {
   }
 }
 
+# Who is really listening on a port. "The port answers TCP" proves nothing about
+# WHAT is listening -- an unrelated system service can hold it. Always resolve the
+# owning PID and its command line before concluding "my service is already running".
+function Get-PortOwnerPid([int]$p) {
+  try {
+    $conn = Get-NetTCPConnection -State Listen -LocalPort $p -ErrorAction Stop | Select-Object -First 1
+    if ($conn -and $conn.OwningProcess) { return [int]$conn.OwningProcess }
+  } catch { }
+  return 0
+}
+
+function Get-ProcessCommandLine([int]$processId) {
+  if ($processId -le 0) { return '' }
+  try {
+    $p = Get-CimInstance Win32_Process -Filter ('ProcessId=' + $processId) -ErrorAction Stop
+    if ($p) { return [string]$p.CommandLine }
+  } catch { }
+  return ''
+}
+
 function Get-LanIp {
   $found = @()
   $wlan = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
@@ -169,16 +189,28 @@ function Stop-DshWeb {
     }
   }
 
-  # stdio MCP children of the dead host are orphaned; clear them so the new host owns fresh ones
-  $needles = @('git-mcp.mjs', 'zotero-mcp.mjs', 'godot-mcp.mjs', '@playwright/mcp', 'playwright\mcp')
-  foreach ($child in (Get-CimInstance Win32_Process -Filter "Name='node.exe'")) {
-    $commandLine = $child.CommandLine
-    if (-not $commandLine) { continue }
-    foreach ($needle in $needles) {
-      if ($commandLine.Contains($needle)) {
-        try { Stop-Process -Id $child.ProcessId -Force -ErrorAction Stop } catch { }
-        break
-      }
+  # stdio MCP children of the hosts we just killed become orphans; clear THOSE ONLY so
+  # the new host owns fresh ones.
+  #
+  # SAFETY: this must never be a name-pattern sweep over every node.exe on the machine.
+  # Doing that also kills the harness process itself and its background job runner, and
+  # that loss is unrecoverable from inside a session -- see
+  # lessons/03-sandbox-stdio-limits.md section 3 in the published playbook.
+  # We therefore scope the sweep to children whose ParentProcessId is one of the PIDs we
+  # actually stopped (Windows keeps the original PPID even after the parent exits).
+  foreach ($parentPid in $targets) {
+    $children = @()
+    try {
+      $children = @(Get-CimInstance Win32_Process -Filter ('ParentProcessId=' + $parentPid) -ErrorAction SilentlyContinue)
+    } catch { }
+    foreach ($child in $children) {
+      $commandLine = $child.CommandLine
+      if (-not $commandLine) { continue }
+      if ($commandLine -notmatch 'mcp\.mjs|@playwright/mcp|playwright\\mcp') { continue }
+      try {
+        Stop-Process -Id $child.ProcessId -Force -ErrorAction Stop
+        Say ('stopped orphaned bridge process pid ' + $child.ProcessId)
+      } catch { }
     }
   }
 
@@ -216,8 +248,29 @@ function Start-DshWeb {
 
 function Start-Gateway {
   if (Test-Port $GatewayPort) {
-    Say ('gateway already listening on port ' + $GatewayPort)
-    return
+    $owner = Get-PortOwnerPid $GatewayPort
+    if ($owner -eq 0) {
+      # Cannot resolve the owner on this system: fall back to the permissive behaviour
+      # but say so, rather than silently claiming everything is fine.
+      Say ('gateway already listening on port ' + $GatewayPort + ' (owner could not be verified; assuming it is ours)')
+      return
+    }
+    $ownerCmd = Get-ProcessCommandLine $owner
+    if ($ownerCmd -and ($ownerCmd -like '*phone-gateway*')) {
+      Say ('gateway already listening on port ' + $GatewayPort + ' (pid ' + $owner + ')')
+      return
+    }
+    # The port answers TCP but it is NOT our gateway. Reporting "already running" here
+    # would be a false positive -- exactly the trap described in
+    # lessons/09-godot-automation.md section 3. Refuse and explain instead.
+    Say ('PORT CONFLICT: ' + $GatewayPort + ' is held by pid ' + $owner + ', which is not the gateway')
+    if ($ownerCmd) {
+      Say ('  command line: ' + $ownerCmd)
+    } else {
+      Say '  (its command line could not be read; treat this as a conflict anyway)'
+    }
+    Say ('  free that port, or re-run with -GatewayPort <other port>')
+    throw ('gateway port ' + $GatewayPort + ' is occupied by another process (pid ' + $owner + ')')
   }
   Remove-Item $gwLog -ErrorAction SilentlyContinue
   Remove-Item $gwErrLog -ErrorAction SilentlyContinue

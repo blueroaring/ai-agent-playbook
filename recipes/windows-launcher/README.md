@@ -69,10 +69,59 @@
 - **入口路径**：`/phone`（若你的网关用了别的路径，同步改）
 - **二维码里放的 URL 形态**：`http://<LAN_IP>:<GatewayPort>/phone?k=<口令>`
 - **口令文件**：`<DSH_HOME>\phone-key.txt`（首次运行应自动生成一个随机口令）
+- **自检里的一项**：`start-phone-access.ps1` 末尾会读
+  `<DSH_HOME>\profiles\web\node_modules\<插件名>\package.json` 来报告插件版本。
+  你不用那个插件的话，**把这一段删掉**（或者改指你自己的插件）
 
 ---
 
-## 3. 可迁移的四个模式
+## 3. 进程管理的安全约束（重要）
+
+**重启宿主时，脚本必须连带清掉宿主遗留的 MCP 子进程**（否则孤儿进程会占着端口和管道）。
+这一步极其容易写成"按进程名批量 kill"，而那是**会毁掉整个会话**的错误做法：
+
+> ### ⛔ 绝对不要按进程名扫杀 `node.exe`
+>
+> 你（Agent）自己就跑在 node 里。**"杀掉所有 node 进程"这句话包含托管你的那个进程**，
+> 以及宿主的后台任务运行器和它刚给你拉起来的 MCP 服务。
+> 这个损失**不可逆** —— 运行器由宿主管理，Agent 没法把它拉回来。
+> 真实事故复盘见 `lessons/03-sandbox-stdio-limits.md` 第 3 节。
+
+### 本脚本的做法：**按父进程 PID 限定范围**
+
+```powershell
+# 1. 只杀真正监听目标端口的那个 PID（用 Get-NetTCPConnection 拿 OwningProcess）
+# 2. 清孤儿子进程时，只清 ParentProcessId 等于"刚被杀掉的那些 PID"的进程
+#    （Windows 即使父进程退出，也会保留原始 PPID，所以这个过滤是可靠的）
+# 3. 在 2 的基础上再要求命令行里含 mcp / playwright 关键字，双条件收窄
+foreach ($parentPid in $targets) {
+  Get-CimInstance Win32_Process -Filter ("ParentProcessId=$parentPid") |
+    Where-Object { $_.CommandLine -match 'mcp\.mjs|@playwright/mcp' } |
+    ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+}
+```
+
+**判据**：你杀掉的每一个进程，都必须能回答"**它为什么是我该杀的**"。
+答不出（"因为它也叫 node"）就不许杀。
+
+### 同一个道理：端口在监听 ≠ 你的服务在跑
+
+脚本里还有一处相关的修正。原来只要 `Test-Port` 通了就认为"网关已经在跑"，
+**但端口通只能证明"有东西在监听"，不能证明那是你的网关** ——
+一个毫不相关的系统服务完全可能占着它（`lessons/09-godot-automation.md` 第 3 节就是这个坑）。
+
+现在的做法是**解析出占用端口的 PID，再核对它的命令行**：
+
+```powershell
+$owner = Get-PortOwnerPid $GatewayPort          # Get-NetTCPConnection -State Listen -> OwningProcess
+$cmd   = Get-ProcessCommandLine $owner          # Win32_Process.CommandLine
+if ($cmd -like '*phone-gateway*') { <# 是我们的，复用 #> }
+else { <# 冲突：明确报错并退出，不要假装一切正常 #> }
+```
+
+**拿不准的时候，报错比"假装成功"好。** 静默的假成功会让你在完全错误的方向上排半天。
+
+## 4. 可迁移的四个模式
 
 即使你不用 DSH，这四个做法也值得抄：
 
@@ -104,7 +153,7 @@
 
 ---
 
-## 4. 验证
+## 5. 验证
 
 - [ ] `start-phone-access.ps1 -NoQr -NoBrowser` → 自检四项全绿，且**没有生成新二维码**
       （用**文件 mtime 前后一致**来断言，不要只看输出里有没有 QR 字样 —— 见
@@ -115,14 +164,14 @@
 
 ---
 
-## 5. 已知限制
+## 6. 已知限制
 
 - **纯 ASCII**，这是**故意的**：Windows PowerShell 5.1 会把无 BOM 的 `.ps1` 按 ANSI 解码，
   含中文的脚本会解析崩溃（→ `lessons/02-windows-powershell51.md` 第 1 节）。
   如果你要加中文，**必须存成带 BOM 的 UTF-8**。
 - **不要用 `Start-Process -WorkingDirectory ... -Wait` 跑依赖 `cwd` 的 Node 脚本** ——
   实测会 `ExitCode=1` 且不产出文件。改成"直接调用 + `Push-Location`"。
-- **绝不要批量 kill `node` 进程**。会连宿主自己的后台任务运行器一起杀掉，**不可逆**。
-  详见 `lessons/03-sandbox-stdio-limits.md` 第 3 节。
+- **绝不要批量 kill `node` 进程**。安全写法与判据见上面第 3 节；完整事故复盘见
+  `lessons/03-sandbox-stdio-limits.md` 第 3 节。**本脚本已按父 PID 限定范围，别把它改回按进程名扫。**
 - 出二维码需要 `qrcode` 包（`npm i qrcode`）。脚本用 `process.cwd()` 解析模块，
   所以要用 `Push-Location` 或从装了包的目录调用。

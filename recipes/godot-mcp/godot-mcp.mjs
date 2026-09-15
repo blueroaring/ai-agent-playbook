@@ -30,13 +30,23 @@ const BRIDGE_PORT = Number(process.env.DSH_GODOT_BRIDGE_PORT || 9080)
 
 // ---------------------------------------------------------------- Godot 定位
 
+// Extra Steam library roots can be appended with
+//   GODOT_STEAM_ROOTS="D:\Games\Steam;E:\SteamLibrary"   (semicolon separated)
 const STEAM_ROOTS = [
+  ...(process.env.GODOT_STEAM_ROOTS ? process.env.GODOT_STEAM_ROOTS.split(';').map((s) => s.trim()).filter(Boolean) : []),
   'C:\\Program Files (x86)\\Steam',
   'C:\\Program Files\\Steam',
   'D:\\Steam',
   'D:\\SteamLibrary',
   'E:\\SteamLibrary',
 ]
+
+// Where godot_projects() looks when the caller does not pass `roots`.
+// The drive letters below are only guesses; override with
+//   GODOT_SCAN_ROOTS="D:\;E:\;C:\dev"                    (semicolon separated)
+const DEFAULT_SCAN_ROOTS = process.env.GODOT_SCAN_ROOTS
+  ? process.env.GODOT_SCAN_ROOTS.split(';').map((s) => s.trim()).filter(Boolean)
+  : [homedir(), 'D:\\', 'E:\\', join(homedir(), 'Desktop'), join(homedir(), 'Documents')]
 
 function steamLibraryRoots() {
   const roots = new Set()
@@ -225,7 +235,7 @@ const tools = {
   },
 
   async godot_projects({ roots = null, depth = 4 } = {}) {
-    const searchRoots = roots?.length ? roots : [homedir(), 'D:\\', 'E:\\', join(homedir(), 'Desktop'), join(homedir(), 'Documents')]
+    const searchRoots = roots?.length ? roots : DEFAULT_SCAN_ROOTS
     const skip = /(^|[\\/])(node_modules|\.git|\.godot|AppData|Windows|Program Files|Program Files \(x86\)|SteamLibrary|steamapps|\.dsh|dist|storage)([\\/]|$)/i
     const found = []
     const walk = (dir, left) => {
@@ -366,7 +376,11 @@ text = "${projectName} — created for DSH"
   async godot_install_addon({ project = null, enable = true } = {}) {
     const p = requireProject(project)
     if (!existsSync(ADDON_SRC)) {
-      return { 结果: '找不到插件源码', 期望位置: ADDON_SRC, 说明: '把 godot-bridge/addon/addons/dsh_bridge 一起复制到运行目录旁（godot-addon/addons/dsh_bridge）' }
+      return {
+        结果: '找不到插件源码',
+        期望位置: ADDON_SRC,
+        说明: '插件目录必须与本脚本同级：' + join(HERE, 'godot-addon', 'addons', 'dsh_bridge'),
+      }
     }
     const dest = join(p, 'addons', 'dsh_bridge')
     ensureDir(join(p, 'addons'))
@@ -467,6 +481,7 @@ const SPECS = [
   S('godot_editor_node_delete', '删除节点（走 UndoRedo）。', { ...PROJ, path: { type: 'string' } }, { required: ['path'] }),
   S('godot_editor_play', '在编辑器里运行主场景（等同 F5）。', PROJ),
   S('godot_editor_stop', '停止编辑器里正在运行的游戏。', PROJ),
+  S('godot_editor_reload', '让编辑器重新加载当前编辑的场景（会丢弃编辑器内未保存的改动）。', PROJ),
   S('godot_editor_save_scene', '保存当前编辑的场景到磁盘。', PROJ),
 ]
 

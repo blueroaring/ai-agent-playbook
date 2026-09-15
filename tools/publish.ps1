@@ -320,31 +320,62 @@ if ($st.Code -ne 0) {
     exit 1
 }
 $changes = @($st.Output | Where-Object { $_ -and $_.ToString().Trim() })
-if ($changes.Count -eq 0) {
-    Write-Log 'working tree clean; nothing to publish'
+if ($changes.Count -gt 0) {
+    Write-Log ('{0} change(s) detected' -f $changes.Count)
+
+    if ($DryRun) {
+        Write-Log 'DryRun: would commit and push the following:'
+        foreach ($c in $changes) { Write-Log ('    ' + $c) }
+        Write-Log 'publish done (dry run)'
+        exit 0
+    }
+
+    $add = Invoke-Git -Arguments @('add', '-A') -Capture
+    if ($add.Code -ne 0) { Write-Log 'git add failed' 'ERROR'; exit 1 }
+
+    $msg = ('{0}: scheduled sync {1}' -f $commitPrefix, (Get-Date -Format 'yyyy-MM-dd'))
+    $commit = Invoke-Git -Arguments @('-c', ('user.name=' + $authorName), '-c', ('user.email=' + $authorEmail), 'commit', '-q', '-m', $msg) -Capture
+    if ($commit.Code -ne 0) {
+        Write-Log 'git commit failed' 'ERROR'
+        foreach ($l in $commit.Output) { Write-Log ('    ' + $l) 'ERROR' }
+        exit 1
+    }
+    Write-Log ('committed: {0}' -f $msg)
+} else {
+    Write-Log 'working tree clean; no new changes to commit'
+}
+
+# A clean working tree does NOT mean there is nothing to publish: a commit made by
+# hand (or by an earlier run that could not push) is still sitting locally. Without
+# this check the scheduled task would silently never push those commits.
+$upstream = Invoke-Git -Arguments @('rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}') -Capture
+$hasUpstream = ($upstream.Code -eq 0)
+
+if ($hasUpstream) {
+    $countResult = Invoke-Git -Arguments @('rev-list', '--count', '@{u}..HEAD') -Capture
+} else {
+    Write-Log 'no upstream configured for this branch yet (first push)' 'WARN'
+    $countResult = Invoke-Git -Arguments @('rev-list', '--count', 'HEAD') -Capture
+}
+
+$unpushed = 0
+if ($countResult.Code -eq 0 -and $countResult.Output.Count -gt 0) {
+    $raw = ($countResult.Output | Select-Object -First 1).ToString().Trim()
+    if ($raw -match '^\d+$') { $unpushed = [int]$raw }
+}
+
+if ($unpushed -eq 0) {
+    Write-Log 'nothing to publish (working tree clean and no local commits ahead)'
     Write-Log 'publish done (no-op)'
     exit 0
 }
-Write-Log ('{0} change(s) detected' -f $changes.Count)
+Write-Log ('{0} local commit(s) not yet on {1}/{2}' -f $unpushed, $remote, $branch)
 
 if ($DryRun) {
-    Write-Log 'DryRun: would commit and push the following:'
-    foreach ($c in $changes) { Write-Log ('    ' + $c) }
+    Write-Log 'DryRun: would push the commits above'
     Write-Log 'publish done (dry run)'
     exit 0
 }
-
-$add = Invoke-Git -Arguments @('add', '-A') -Capture
-if ($add.Code -ne 0) { Write-Log 'git add failed' 'ERROR'; exit 1 }
-
-$msg = ('{0}: scheduled sync {1}' -f $commitPrefix, (Get-Date -Format 'yyyy-MM-dd'))
-$commit = Invoke-Git -Arguments @('-c', ('user.name=' + $authorName), '-c', ('user.email=' + $authorEmail), 'commit', '-q', '-m', $msg) -Capture
-if ($commit.Code -ne 0) {
-    Write-Log 'git commit failed' 'ERROR'
-    foreach ($l in $commit.Output) { Write-Log ('    ' + $l) 'ERROR' }
-    exit 1
-}
-Write-Log ('committed: {0}' -f $msg)
 
 if ($NoPush) {
     Write-Log 'NoPush: skipping push'
