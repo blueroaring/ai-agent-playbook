@@ -400,10 +400,30 @@ $env:GIT_CONFIG_KEY_0 = 'http.extraheader'
 $env:GIT_CONFIG_VALUE_0 = 'Authorization: Basic ' + $b64
 
 try {
-    $push = Invoke-Git -Arguments @('push', $remote, $branch) -Capture
+    # git global options must precede the subcommand; -u belongs to the subcommand.
+    $pushVerb = @('push')
+    if (-not $hasUpstream) { $pushVerb += '-u' }     # first push: set the upstream
+    $pushTail = @($remote, $branch)
+
+    $push = Invoke-Git -Arguments ($pushVerb + $pushTail) -Capture
+
+    # Local proxy software (http.proxy pointing at e.g. 127.0.0.1:7890) is common on
+    # developer machines and it can break the push transport while leaving read
+    # operations working, producing connection resets or "unexpected eof" instead of
+    # a real error. Fall back progressively before giving up.
+    if ($push.Code -ne 0) {
+        Write-Log 'push failed; retrying with http.version=HTTP/1.1 (some proxies break HTTP/2 push)' 'WARN'
+        $push = Invoke-Git -Arguments (@('-c', 'http.version=HTTP/1.1') + $pushVerb + $pushTail) -Capture
+    }
+    if ($push.Code -ne 0) {
+        Write-Log 'push failed again; retrying with the proxy bypassed for github.com' 'WARN'
+        $push = Invoke-Git -Arguments (@('-c', 'http.version=HTTP/1.1', '-c', 'http.https://github.com.proxy=') + $pushVerb + $pushTail) -Capture
+    }
     if ($push.Code -ne 0) {
         Write-Log 'git push failed' 'ERROR'
         foreach ($l in $push.Output) { Write-Log ('    ' + $l) 'ERROR' }
+        Write-Log 'hint: a 403 "Permission to ... denied" means the credential lacks Contents:write.' 'ERROR'
+        Write-Log 'hint: verify with  POST /repos/<owner>/<repo>/git/blobs  (201 = can write, 403 = cannot).' 'ERROR'
         exit 1
     }
     Write-Log ('pushed to {0}/{1}' -f $remote, $branch)
