@@ -32,6 +32,7 @@
 | 手机 / 局域网设备打不开本机 GUI，或打开了但功能异常 | [08](08-lan-reverse-proxy-remote-gui.md) |
 | PWA「添加到主屏幕」拿不到图标/名称/全屏 | [08](08-lan-reverse-proxy-remote-gui.md) |
 | `Invoke-WebRequest` 连不上，但别的工具（Node/Bash）能连 | [11](11-http-network-troubleshooting.md) |
+| `git push` 报 403 `Permission to ... denied to <你>` | [11](11-http-network-troubleshooting.md) 第 8 节 |
 | 改了配置/插件但行为没变 | [07](07-dsh-harness-internals.md) |
 | patch 配置写了但不生效 / warning | [07](07-dsh-harness-internals.md) |
 

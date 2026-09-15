@@ -164,7 +164,94 @@ node -e "fetch('https://<host>/').then(async r=>console.log(r.status, (await r.t
 
 ---
 
-## 8. 速查
+## 8. 认证类 403 的分层诊断：以 `git push` 被拒为例 `[通病]`
+
+### 症状
+
+```
+remote: Permission to <OWNER>/<REPO>.git denied to <USER>.
+fatal: unable to access 'https://github.com/<OWNER>/<REPO>.git/': The requested URL returned error: 403
+```
+
+**这句话极具误导性**：它说"denied to **<你的用户名>**"，于是你会去查**用户**的权限。
+而真实原因绝大多数是**凭据（token）自身的授权范围**，跟用户的角色无关。
+
+### 先排除三个错误结论
+
+| 你以为 | 实际 |
+|---|---|
+| "我的账号没有这个仓库的写权限" | ❌ 角色几乎肯定没问题，见下面的陷阱 |
+| "token 的仓库访问范围没勾上这个仓库" | ❌ **范围不对会返回 404，不是 403** |
+| "是 credential helper 里存了旧凭据" | ⚠️ 有可能，但**必须实测排除**，别猜 |
+
+### 三层诊断（每层都只回答一个问题）
+
+```bash
+# ① 认证本身有没有过？—— 只读操作
+git ls-remote https://github.com/<OWNER>/<REPO>.git
+#   成功（退出码 0）→ 凭据有效、仓库可见、网络通。问题被限定在"写"上。
+
+# ② 写有没有被授权？—— dry-run，不会真的改动远端
+git push --dry-run origin <BRANCH>
+
+# ③ 是不是别的凭据在捣乱？—— 显式禁用 credential helper 再试一次
+git -c credential.helper= push --dry-run origin <BRANCH>
+#   仍然 403 → 就是这个 token 的授权不够（而不是 helper 里的旧凭据）
+#   变好了   → 问题在 helper 存的凭据上，去改它
+```
+
+**读通过 + 写 403 ⇒ 凭据的权限问题。** 这是本文档最有价值的一条判据。
+
+### ⚠️ 陷阱：API 的 `permissions` 字段会骗你
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" https://api.github.com/repos/<OWNER>/<REPO>
+```
+
+返回里会有：
+
+```json
+"permissions": { "admin": true, "maintain": true, "push": true, "triage": true, "pull": true }
+```
+
+**这个 `push: true` 说的是"你这个用户在仓库里的角色"，不是"这个 token 被授予了什么"。**
+拿它判断"token 能不能推"会得到完全错误的结论 —— 我们就是这么被骗了一轮。
+
+> 📌 **可迁移的规则**：*当你用一个"身份令牌"去读"权限信息"时，先问清楚
+> 这份权限信息描述的是**谁**的权限 —— 是令牌主体的角色，还是令牌本身的授权范围。*
+> 二者在委托/代理模型里是**不同的东西**，而 API 往往只返回前者。
+
+### 修复（GitHub fine-grained PAT）
+
+```
+Settings → Developer settings → Personal access tokens → 选中该 token
+  ├─ Repository access : 选中目标仓库，或 "All repositories"
+  └─ Permissions → Repository permissions → Contents : Read and write   ← 关键
+```
+
+- `Contents: Read` → 读全部通过、写全部 403（就是本节的症状）
+- **改权限不会改变 token 字符串** → 通常**不需要**更新你的凭据文件
+- 之后要推 workflow 文件的话还需要 `Workflows: Read and write`（一般不用）
+
+### 顺带：别把 token 放进 URL 或命令行
+
+```bash
+# ❌ token 出现在 argv 里，同机任何进程都能读到（Get-CimInstance Win32_Process 就能看）
+git push https://x-access-token:<TOKEN>@github.com/<OWNER>/<REPO>.git
+
+# ✅ 通过环境变量注入 git config，不进 argv、不进仓库配置、不进 remote URL
+export GIT_CONFIG_COUNT=1
+export GIT_CONFIG_KEY_0=http.extraheader
+export GIT_CONFIG_VALUE_0="Authorization: Basic $(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)"
+git push origin <BRANCH>
+```
+
+`git ls-remote` 与 `git push` 用的是**同一份凭据** —— 所以第 ① 层能成功、第 ② 层失败时，
+你可以确信"凭据没配错、只是权限不够"，而不用去查网络和代理。
+
+---
+
+## 9. 速查
 
 | 现象 | 先做 |
 |---|---|
