@@ -39,6 +39,7 @@
 | 学术 API 429 / 反爬挑战页 / 抓不到论文 | [12](12-literature-source-apis.md) |
 | 多源聚合后同一篇论文重复出现 | [12](12-literature-source-apis.md) 第 7 节 |
 | **用久了列表里才冒出成对的重复条目** | [12](12-literature-source-apis.md) 第 7.1 节 |
+| 加了一处身份对齐，换条写入路径又重复了 | [12](12-literature-source-apis.md) 第 7.2 节 |
 | 子表里有指向不存在主表的孤儿行（界面还看不出来） | [12](12-literature-source-apis.md) 第 9 节 |
 | 写入外部服务/papers 库后立刻查重查不到 | [12](12-literature-source-apis.md) 第 8 节 |
 | 用标题去学术库精确匹配，却匹配错了文章 | [12](12-literature-source-apis.md) 第 5 节 |
