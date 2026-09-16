@@ -420,3 +420,73 @@ if ($errors) { $errors | ForEach-Object { $_.Message } } else { "syntax OK" }
 **注意**：`ParseFile` 报 OK **不代表**在目标 shell 上能跑 ——
 它按当前会话的解码方式读文件。`ParseFile` OK + 字节扫描 0 非 ASCII，
 两项都过才算真的安全。
+
+---
+
+## 10. `schtasks /Create` 的默认设置会让笔记本**静默跳过**定时任务 `[通病]`
+
+**症状**：用户抱怨"今天早上没收到邮件/任务没跑"。查日志 —— 什么都没有。查任务 —— 存在、已启用、
+但 `LastRunTime` 停在好几天前。**没有任何错误信息**，因为任务压根没启动。
+
+**根因**：`schtasks /Create` 的默认值，对**笔记本**来说全是错的：
+
+| 设置 | schtasks 默认 | 后果 |
+|---|---|---|
+| `StartWhenAvailable` | `false` | 到点时电脑关着/睡着 → 该次记为 missed，**永远不补跑** |
+| `DisallowStartIfOnBatteries` | `true` | **用电池时根本不启动**（笔记本常态） |
+| `StopIfGoingOnBatteries` | `true` | 跑一半拔电源就被杀 |
+| `WakeToRun` | `false` | 睡眠中的电脑不会被唤醒 |
+
+最阴的地方：**这三项不产生任何报错**，任务只是"没发生"。用户只能自己发现没收到东西，
+而排查者的第一反应往往是去怀疑脚本/网络/凭据 —— 方向全错。
+
+**更麻烦的是**：`schtasks.exe` **没有任何开关**能设置 `StartWhenAvailable` 或电池选项
+（`/RU` `/RL` `/F` `/Z` 都不管这个）。所以"用 schtasks 注册"这条路本身就不够。
+
+**解法**：用 PowerShell 的 ScheduledTasks 模块显式设置。
+
+```powershell
+$action = New-ScheduledTaskAction -Execute "cmd.exe" -Argument '/c cd /d "C:\path\to\repo" && "C:\path\to\python.exe" -m mytool job >> "C:\path\to\logs\job.log" 2>&1'
+$trigger = New-ScheduledTaskTrigger -Daily -At 08:30
+$settings = New-ScheduledTaskSettingsSet `
+  -StartWhenAvailable `
+  -AllowStartIfOnBatteries `
+  -DontStopIfGoingOnBatteries `
+  -ExecutionTimeLimit (New-TimeSpan -Hours 1)
+# 可选：到点唤醒电脑（笔记本用电池时会吓人，默认关掉）
+# $settings.WakeToRun = $true
+
+Register-ScheduledTask -TaskName "MyTask" -Action $action -Trigger $trigger -Settings $settings -Force
+```
+
+**注册完必须回读**（不要相信"注册成功"这句话）：
+
+```powershell
+(Get-ScheduledTask -TaskName "MyTask").Settings |
+  Select-Object StartWhenAvailable, DisallowStartIfOnBatteries, StopIfGoingOnBatteries, WakeToRun
+Get-ScheduledTaskInfo -TaskName "MyTask" |
+  Select-Object LastRunTime, LastTaskResult, NextRunTime, NumberOfMissedRuns
+```
+
+`NumberOfMissedRuns` 是最早能发现问题的信号 —— 它明确告诉你"被跳过过几次"。
+
+**验证**：`Start-ScheduledTask -TaskName "MyTask"` 手动触发一次，确认
+`LastTaskResult = 0` **且**目标日志文件的 mtime 真的变了。
+（`LastTaskResult = 267011` 或 `0x41303` 都表示"从未运行过"。）
+
+**顺带一条排障顺序**（"到点自动做某事"没发生时）：
+
+```
+① Get-ScheduledTaskInfo → 到底跑没跑？（LastRunTime / LastTaskResult / MissedRuns）
+② 任务动作里的日志文件 mtime → 跑过就一定会变（cmd 的 >> 会创建/触碰文件）
+③ 业务产物（报告/输出文件）目录 → 有产物没邮件 = 下游（网络/凭据）问题；
+   产物和日志都没有 = 任务根本没跑，回到 ①
+```
+
+**给产品的启示**：凡是"到点自动做某事"的功能，**默认值必须按"用户会关机、会用电池"来设**，
+并在设置界面/文档里把"错过怎么办"讲清楚。**静默失败是最差的失败方式。**
+
+**真实案例**：本机 2026-09-15 用 `schtasks /Create` 注册的任务，在 09-16 08:30 没有运行 ——
+电脑当时关机，而 `StartWhenAvailable=false`，15:32 开机后也没补跑。
+改用 `Register-ScheduledTask` 显式设置后，回读确认三项已修正；手动触发得到
+`LastTaskResult=0` + 日志增长 + 报告生成 + 邮件送达。

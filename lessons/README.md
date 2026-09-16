@@ -43,6 +43,8 @@
 | **验证"打开了网页/窗口"时证据全是假的** | [01](01-verification-discipline.md) 事故 6 |
 | 用户手改一次配置文件，程序就起不来了（报第 1 行第 1 列） | [02](02-windows-powershell51.md) 第 2 节 |
 | `.ps1` / `.bat` 里中文注释让脚本莫名崩掉 | [02](02-windows-powershell51.md) 第 1、9.1 节 |
+| **定时任务到点没跑，却没有任何报错** | [02](02-windows-powershell51.md) 第 10 节 |
+| 探测返回空/报错，分不清"不存在"还是"查不到" | [01](01-verification-discipline.md) 事故 7 |
 
 ## 按主题读
 
