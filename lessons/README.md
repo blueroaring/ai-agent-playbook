@@ -1,6 +1,6 @@
 # 经验条目索引
 
-12 篇。**不要通读**——按症状或主题检索。
+13 篇。**不要通读**——按症状或主题检索。
 
 每篇结构统一：`症状 → 根因 → 解法 → 验证`，并在小节标题上标注环境适用范围：
 
@@ -15,6 +15,8 @@
 
 | 你看到的症状 / 报错 | 去哪篇 |
 |---|---|
+| **`cannot modify ...: file has not been read — read the file, then retry`（反复出现）** | **[13](13-edit-preconditions.md)** |
+| `cannot edit ...: file changed since it was read — re-read the file` | [13](13-edit-preconditions.md) 第 3、5 节 |
 | `cannot create standard input pipe for ...: Permission denied` | [03](03-sandbox-stdio-limits.md) |
 | `spawn ... EPERM`、`cmd \| Select-Object` 失败、`git push` 必失败 | [03](03-sandbox-stdio-limits.md) |
 | `Windows Job runner exited ... before proving its managed range empty` | [03](03-sandbox-stdio-limits.md) |
@@ -70,6 +72,7 @@
 | [10](10-zotero-automation.md) | Zotero 文献库读写 | 锁库读、API 写、字段索引 |
 | [11](11-http-network-troubleshooting.md) | HTTP / 网络排查顺序 | 换客户端比换网络先试 |
 | [12](12-literature-source-apis.md) | 学术数据源 API 的真实行为 | Scholar/arXiv/dblp/OpenAlex/Crossref 的坑与 Zotero 写入 |
+| [13](13-edit-preconditions.md) | **文件编辑的前置条件与版本 CAS** | 根治 "file has not been read"；附"没报错的那一半才危险" |
 
 ## 阅读顺序建议
 

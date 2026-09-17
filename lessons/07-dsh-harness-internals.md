@@ -224,3 +224,4 @@ auto 采样的是**本机环境**，它**根本感知不到"真正的用户在�
 | 换完少了一半功能 | swap point 是**两张表**（后端 + surface），都插了吗？ |
 | 想从别的设备访问 | 别改 bind，加反代 → [08](08-lan-reverse-proxy-remote-gui.md) |
 | 重启后连不上 | token 变了；PID 变了 → 从**稳定的文件**读最新值 |
+| `cannot modify ...: file has not been read` | 先读后写策略：`read` 与 `edit` 成对下 → [13](13-edit-preconditions.md) |
