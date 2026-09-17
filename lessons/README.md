@@ -1,6 +1,6 @@
 # 经验条目索引
 
-13 篇。**不要通读**——按症状或主题检索。
+14 篇。**不要通读**——按症状或主题检索。
 
 每篇结构统一：`症状 → 根因 → 解法 → 验证`，并在小节标题上标注环境适用范围：
 
@@ -57,6 +57,11 @@
 | 服务端 404，但文件明明在磁盘上（名字含中文/空格） | [12](12-literature-source-apis.md) 第 9 节 |
 | **让 LLM 报出的标题/ID/人名，直接用就出事** | [12](12-literature-source-apis.md) 第 11 节 |
 | **序列化一个"部分构造"的对象，把已算好的值盖成默认值** | [12](12-literature-source-apis.md) 第 11 节 |
+| **`stream disconnected before completion` / `Reconnecting... n/5`（反复出现）** | **[14](14-upstream-model-capacity-vs-network.md)** |
+| `Selected model is at capacity` / `server_overloaded` | [14](14-upstream-model-capacity-vs-network.md) 第 2.3、3.1 节 |
+| `远程主机强迫关闭了一个现有的连接 (os error 10054)` | [14](14-upstream-model-capacity-vs-network.md) 第 3.2 节 |
+| 写配置时报 `model_providers contains reserved built-in provider IDs` | [14](14-upstream-model-capacity-vs-network.md) 第 3.2 节 |
+| **"肯定是上下文太大了" —— 但缩小输入问题依旧** | [14](14-upstream-model-capacity-vs-network.md) 第 2.4 节 |
 
 ## 按主题读
 
@@ -75,6 +80,7 @@
 | [11](11-http-network-troubleshooting.md) | HTTP / 网络排查顺序 | 换客户端比换网络先试 |
 | [12](12-literature-source-apis.md) | 学术数据源 API 的真实行为 | Scholar/arXiv/dblp/OpenAlex/Crossref 的坑与 Zotero 写入 |
 | [13](13-edit-preconditions.md) | **文件编辑的前置条件与版本 CAS** | 根治 "file has not been read"；附"没报错的那一半才危险" |
+| [14](14-upstream-model-capacity-vs-network.md) | **长连接流中断：链路断 vs 服务端拒** | 别再把服务端过载当网络问题查；一条硬判据排除上下文超限 |
 
 ## 阅读顺序建议
 
