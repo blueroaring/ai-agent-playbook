@@ -55,6 +55,8 @@
 | HTTPS 正常，但 SMTP 等非 HTTP 端口全部 TLS 超时 | [11](11-http-network-troubleshooting.md) 第 10 节 |
 | **把我给过系统的种子/样例又推荐回来** | [12](12-literature-source-apis.md) 第 10 节 |
 | 服务端 404，但文件明明在磁盘上（名字含中文/空格） | [12](12-literature-source-apis.md) 第 9 节 |
+| **让 LLM 报出的标题/ID/人名，直接用就出事** | [12](12-literature-source-apis.md) 第 11 节 |
+| **序列化一个"部分构造"的对象，把已算好的值盖成默认值** | [12](12-literature-source-apis.md) 第 11 节 |
 
 ## 按主题读
 
