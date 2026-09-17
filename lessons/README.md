@@ -48,6 +48,9 @@
 | `.ps1` / `.bat` 里中文注释让脚本莫名崩掉 | [02](02-windows-powershell51.md) 第 1、9.1 节 |
 | **定时任务到点没跑，却没有任何报错** | [02](02-windows-powershell51.md) 第 10 节 |
 | 探测返回空/报错，分不清"不存在"还是"查不到" | [01](01-verification-discipline.md) 事故 7 |
+| **写操作日志说成功，但数据没变** | [01](01-verification-discipline.md) 事故 8 |
+| **定时任务每天做同样的无用功，永远没新内容** | [01](01-verification-discipline.md) 事故 9 |
+| HTTPS 正常，但 SMTP 等非 HTTP 端口全部 TLS 超时 | [11](11-http-network-troubleshooting.md) 第 10 节 |
 
 ## 按主题读
 

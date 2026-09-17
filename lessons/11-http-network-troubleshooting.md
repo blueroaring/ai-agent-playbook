@@ -306,3 +306,69 @@ git push origin <BRANCH>
 | 想确认端口是否真的被占 | `Get-NetTCPConnection -State Listen`（**不要**用"能不能连上"推断） |
 | 浏览器里行为诡异 | 无痕 / 清缓存 / cache-bust 参数 |
 | 局域网访问不了 | 防火墙**入站**规则 |
+| **HTTPS 正常，但 SMTP/别的非 HTTP 端口全部 TLS 超时** | 见下一节：代理 TUN + fake-IP |
+
+---
+
+## 10. 代理软件的 TUN 模式会让**非 HTTP 协议**莫名其妙地失败 `[通病]`
+
+**症状**：网页、API 一切正常，但某些**非 HTTP** 协议（SMTP、IMAP、自定义 TCP）
+连接后 TLS 握手**超时或 `UNEXPECTED_EOF_WHILE_READING`**，
+换服务商、换端口（465/587/25）都没用；**连直连对方的真实 IP 也失败**。
+
+**先确认是不是这一类**（三条一起看）：
+
+```powershell
+# ① 域名是否被解析到 198.18/198.19 段 —— 这是 Clash 一类工具的 fake-IP 段
+Resolve-DnsName smtp.qq.com
+# ② 是否启用了 TUN 虚拟网卡
+Get-NetAdapter | Where-Object { $_.InterfaceDescription -match "TUN|TAP|Clash|Wintun" }
+# ③ 系统代理是否开着
+(Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings').ProxyServer
+```
+
+三条都命中，就基本可以定性。
+
+**根因**（fake-IP 机制的第二层）：
+
+TUN + fake-IP 的工作方式是：DNS 被接管，域名一律回 `198.18.x.x`；
+应用连到这个假 IP 时，代理**靠内部的"假 IP → 域名"映射**把域名还原出来，
+再按 `DOMAIN-SUFFIX,qq.com,DIRECT` 这类**域名规则**决定走向。
+
+一旦这个映射缺失（典型场景：**代理进程刚重启，而系统 DNS 缓存里还留着上一轮的假 IP**），
+域名就还原不出来 → 域名规则全部失效 → 流量掉进最后的兜底规则 `MATCH,<代理节点>`
+→ 代理节点通常**封 SMTP 端口**（防垃圾邮件）→ TLS 握手被中途掐断。
+
+这也解释了为什么"**直连真实 IP 也失败**"：连接仍会被 TUN 接住，
+而它对 IP 的处置同样依赖那套映射/规则。
+
+**关键鉴别点**：`DOMAIN-SUFFIX,<对方域名>,DIRECT` 明明写在规则里，却依然走代理。
+**规则本身没错，错的是"域名还原"这一步** —— 所以不要花时间去改规则顺序。
+
+**处理**（按成功率排序）：
+
+1. **`ipconfig /flushdns` 后重试** —— 让系统 DNS 重新经过代理解析一遍，
+   把假 IP 映射补上。最简单，实测有效（清完几分钟内恢复）。
+2. 在代理规则里给该域名加 DIRECT，并用工具的 **Parsers / prepend-rules** 固化，
+   避免订阅更新时被冲掉（Clash for Windows 的 `cfw-settings.yaml` → `profileParsersText`）。
+3. 临时关闭 TUN 模式（改走系统代理）后重试。
+
+**一个反直觉的验证实验**（值得记）：把 socket **绑定到物理网卡 IP** 以绕开 TUN 路由：
+
+```python
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.bind(("192.168.x.x", 0))     # 物理网卡地址 → 不经过 TUN
+sock.connect((host, port))
+```
+
+- 若绑定后成功、默认路由失败 → 确定是 TUN 的问题；
+- 若两者都失败 → 是更外层（运营商/安全软件）封了端口。
+
+⚠️ 但注意：**这个实验可能在几分钟后给出相反结论** —— 我这台机器上，
+"默认路由"第一次测全线超时，`flushdns` 之后同一段代码就成功了。
+**网络故障会自己变化，所以要么尽快重复测量，要么以"修好之后能不能持续成功"为准。**
+
+**给产品代码的启示**：这类失败**不该一次就判定为永久失败**。
+见 [03](03-sandbox-stdio-limits.md) 的思路 —— 重试 + 备用端点（465↔587）+
+给出**可操作的**错误信息（直接点名"代理 TUN 拦了 SMTP"并给出验证命令），
+比抛一个 `SSLEOFError` 让用户自己猜要好得多。
