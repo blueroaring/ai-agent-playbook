@@ -189,7 +189,131 @@ Get-Process -Id <上面的 PID> | Select-Object Name,Path
 
 ---
 
-## 8. 速查
+## 8. `get_image()` 全黑的两个前提，以及 Movie Maker 吞参数 `[通病]`
+
+第 1 节说"无头没有渲染"，但**有窗口时 `get_viewport().get_texture().get_image()` 仍可能全黑**。
+`[本机]` 实测（Godot 4.7.2 / gl_compatibility / Windows）两个前提，缺一个就全黑：
+
+### 前提 1：**窗口尺寸必须等于视口尺寸**
+
+```ini
+; 这样写会全黑：视口 1920x1080，窗口覆盖成 1280x720
+window/size/viewport_width=1920
+window/size/viewport_height=1080
+window/size/window_width_override=1280   ; ← 元凶
+window/size/window_height_override=720
+```
+
+**症状极具误导性**：`get_image()` 返回全黑，但**同一时刻录帧（Movie Maker）拍出来画面是正常的**。
+于是很容易得出"这个项目渲染坏了"的错误结论，其实只是截图路径的窗口/视口不一致。
+
+**更坑的是**：窗口小于视口时，`canvas_items` 拉伸**不一定**把画面缩放到窗口里——
+实测出现过"画面按 1:1 画在左上角、其余是默认底色"，**用录帧看才发现**。
+
+**判定方法（照抄）**：
+
+```gdscript
+print(DisplayServer.window_get_size(), " vs ", get_viewport().get_visible_rect().size)
+var img := get_viewport().get_texture().get_image()
+# 采样统计非黑像素占比：>0 才算能截图；恒为 0 就是上面那个不一致
+```
+
+### 前提 2：Movie Maker 模式**不转发自定义参数** `[本机]`
+
+```
+godot --path . --write-movie out.png --fixed-fps 10 --quit-after 230 -- --dsh-autotest
+```
+
+`--` 之后的业务参数在录帧模式下**会被吞掉**：录出来的 230 帧全是"启动画面→标题"，
+自动化流程根本没跑。所以：
+
+| 目的 | 手段 |
+|---|---|
+| 跑全流程自动化并留下画面 | **让被测代码自己 `save_png`**（走查器抓图到 `res://screenshots/`） |
+| 只验证"某个静态画面渲染正常" | Movie Maker 录帧 |
+
+**结论：把"抓图"做进被测代码里，比依赖外部录帧工具可靠。**
+
+---
+
+## 9. 四个"状态全对但画面不对"的经典坑（全部实测踩过）`[通病]`
+
+这一节值得单独记：这些 bug 的**共同特征是所有断言/日志都正常，只有看画面才能发现**。
+
+### 10.1 启动场景从未被释放 —— 旧画面永久盖在新场景上
+
+自动加载的场景路由器第一次切场景时，内部 `current_scene` 还是 `null`
+（启动场景由 `main_scene` 直接加载，**绕过了路由**）。当时按"根节点下叫 `CurrentScene` 的节点"
+去兜底清理，而启动场景的节点名是它自己的根节点名（`Boot`），**名字对不上 → 什么都没清掉**，
+启动 LOGO 就永久盖在后续所有场景之上。
+
+**正解**：用 `get_tree().current_scene`。**启动时它确实指向启动场景**，是引擎给的权威引用。
+
+### 10.2 不要对"正在执行的场景"调用 `free()` —— 直接段错误
+
+`[本机]` 实测：对当前场景 `remove_child()` 后 `free()`，进程**崩溃 signal 11**
+（GDScript backtrace 只指到那一行，看不出是引擎侧悬垂指针）。
+
+**正解**（既立刻生效又安全）：
+
+```gdscript
+parent.remove_child(node)   # 立刻从树上摘掉 → 下一帧起不再渲染
+node.queue_free()           # 交给引擎在安全时机销毁
+```
+
+### 10.3 `fade=false` 也必须清遮罩 —— 否则永久黑屏
+
+场景切换函数写成"`fade=true` 才淡入"，而启动流程是"先 `fade_out_instant()`（把遮罩设成不透明）
+再 `go_to(..., fade=false)`" → 遮罩**永远不透明**，画面全黑，
+而**所有状态检查、日志、断言全部正常**。
+
+**正解**：清理遮罩与 `fade` 参数解耦，无条件执行。
+
+### 10.4 代码创建的 Control 调 `set_anchors_preset()` **不生效** `[本机]`
+
+场景根节点是 `Node2D`（不是 Control）时，实测程序化创建的 Control 调 `set_anchors_preset()` 后
+`anchor_*` 仍是 `0`，界面**全部堆在左上角**。
+
+**判定**：`print(btn.get_global_rect(), btn.anchor_left)` —— 期望居中却得到 `(-240, 30)`、`0.0`。
+
+**正解**：改为**显式按视口尺寸摆位**（自己算 `position`/`size`），
+并监听 `get_viewport().size_changed` 重排。想要居中就自己算一次减半尺寸。
+
+> 教训：**"锚点"这类依赖父容器尺寸的机制，在非 Control 根节点下不要想当然。**
+
+---
+
+## 10. 碰撞层是**位掩码**不是层号 `[通病]`
+
+`collision_layer` / `collision_mask` 的值是 2 的幂：`1`=第1层、`2`=第2层、`4`=第3层、`8`=第4层。
+**不是"第几层就写几"**。
+
+`[本机]` 症状：玩家身上的交互探测 `Area2D` 写 `mask = 4`（本意"第 4 层"），
+于是只匹配到**第 3 层**的 `Area2D` 交互物，
+而 NPC 是 `CharacterBody2D`、在**第 2 层** → **完全探不到，按交互键没反应**。
+
+**排查手法（很有效）**：把"期望"和"实际"一起打出来——
+
+```gdscript
+print(probe.collision_mask, " 重叠 Area2D=", probe.get_overlapping_areas().size(),
+      " 重叠 Body=", probe.get_overlapping_bodies().size())
+for b in probe.get_overlapping_bodies(): print(b.name, b.collision_layer)
+# 再用直接空间查询对照（它不受掩码配置影响）：
+var q := PhysicsShapeQueryParameters2D.new()
+q.shape = shape; q.transform = Transform2D(0.0, global_position)
+q.collide_with_areas = true; q.collide_with_bodies = true
+q.collision_mask = 0xFFFFFFFF
+for hit in get_viewport().world_2d.direct_space_state.intersect_shape(q, 16):
+    print(hit["collider"].name)
+```
+
+**"直接空间查询能查到、但 `get_overlapping_*()` 查不到"** →
+几乎可以断定是 mask 写错了。**正解**：把层的掩码集中定义成常量（如 `mask = ACTORS | INTERACTABLE`），
+别在场景里散落魔法数字。
+
+---
+
+## 11. 速查
 
 | 现象 | 首查 |
 |---|---|
@@ -200,3 +324,11 @@ Get-Process -Id <上面的 PID> | Select-Object Name,Path
 | Agent 改了我的场景 | 实现是否走 **UndoRedo**？（可 Ctrl+Z） |
 | 临时文件污染项目 | 用 `.` 前缀目录，或放系统 temp |
 | 导出失败 | 导出模板装了吗？版本对得上吗？ |
+| `get_image()` 全黑但录帧正常 | **窗口尺寸 vs 视口尺寸是否相等**；`canvas_items` 是否真的缩放了 |
+| 录帧全是开头几帧 | Movie Maker **不转发 `--` 之后的自定义参数**；改成让代码自己存图 |
+| 旧场景画面盖在新场景上 | 启动场景没被释放：用 `get_tree().current_scene`，别按名字找 |
+| 改场景清理后进程段错误 | 对当前场景用了 `free()`：改 `remove_child()` + `queue_free()` |
+| 切场景后永久黑屏但逻辑正常 | `fade=false` 路径没清遮罩 |
+| 程序化 Control 全堆在左上角 | 非 Control 根节点下 `set_anchors_preset()` 不生效，改显式摆位 |
+| 按交互键没反应、探测不到 NPC | 碰撞 **mask 位掩码**写错（层号 ≠ 掩码值） |
+

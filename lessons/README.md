@@ -30,6 +30,13 @@
 | `database is locked`（SQLite） | [10](10-zotero-automation.md) |
 | 本地 API 的写操作全部返回 501 | [10](10-zotero-automation.md) |
 | 无头模式跑起来没有画面 / 截不到图 | [09](09-godot-automation.md) |
+| **有窗口，但 `get_image()` 截出来全黑（录帧却正常）** | [09](09-godot-automation.md) 第 8 节 |
+| **录帧只录到开头几帧，自动化流程没跑** | [09](09-godot-automation.md) 第 8 节 |
+| **旧场景画面永久盖在新场景上（启动 LOGO 一直浮在最上层）** | [09](09-godot-automation.md) 第 9.1 节 |
+| **清理旧场景后进程段错误（signal 11）** | [09](09-godot-automation.md) 第 9.2 节 |
+| **切场景后一直黑屏，但所有状态检查都正常** | [09](09-godot-automation.md) 第 9.3 节 |
+| **代码创建的 UI 全堆在左上角，锚点像没生效** | [09](09-godot-automation.md) 第 9.4 节 |
+| **按交互键没反应，探测不到某些对象** | [09](09-godot-automation.md) 第 10 节 |
 | 端口明明空着却绑不上（或探测结果骗人） | [09](09-godot-automation.md) |
 | 手机 / 局域网设备打不开本机 GUI，或打开了但功能异常 | [08](08-lan-reverse-proxy-remote-gui.md) |
 | PWA「添加到主屏幕」拿不到图标/名称/全屏 | [08](08-lan-reverse-proxy-remote-gui.md) |
