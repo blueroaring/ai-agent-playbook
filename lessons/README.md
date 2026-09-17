@@ -36,6 +36,7 @@
 | **清理旧场景后进程段错误（signal 11）** | [09](09-godot-automation.md) 第 9.2 节 |
 | **切场景后一直黑屏，但所有状态检查都正常** | [09](09-godot-automation.md) 第 9.3 节 |
 | **代码创建的 UI 全堆在左上角，锚点像没生效** | [09](09-godot-automation.md) 第 9.4 节 |
+| **锁住移动后连交互也失效，玩家卡死在开场** | [09](09-godot-automation.md) 第 9.5 节 |
 | **按交互键没反应，探测不到某些对象** | [09](09-godot-automation.md) 第 10 节 |
 | 端口明明空着却绑不上（或探测结果骗人） | [09](09-godot-automation.md) |
 | 手机 / 局域网设备打不开本机 GUI，或打开了但功能异常 | [08](08-lan-reverse-proxy-remote-gui.md) |
