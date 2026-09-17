@@ -51,6 +51,8 @@
 | **写操作日志说成功，但数据没变** | [01](01-verification-discipline.md) 事故 8 |
 | **定时任务每天做同样的无用功，永远没新内容** | [01](01-verification-discipline.md) 事故 9 |
 | HTTPS 正常，但 SMTP 等非 HTTP 端口全部 TLS 超时 | [11](11-http-network-troubleshooting.md) 第 10 节 |
+| **把我给过系统的种子/样例又推荐回来** | [12](12-literature-source-apis.md) 第 10 节 |
+| 服务端 404，但文件明明在磁盘上（名字含中文/空格） | [12](12-literature-source-apis.md) 第 9 节 |
 
 ## 按主题读
 
