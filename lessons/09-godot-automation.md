@@ -598,7 +598,15 @@ func current_target_name() -> String:
    把**真正的 `queue_free()` 交给 `SceneTree` 的计时器**（`tree.create_timer(0.05)`），
    不要在自己还处在 `await` 调用栈里时销毁自己。
 3. **持有方每帧做一次 `is_instance_valid()` 兜底**：靠信号（`area_exited`）是不可靠的，
-   信号会因为"你自己关了 monitoring"而不来。一行`if x != null and not is_instance_valid(x)` 就够。
+   信号会因为"你自己关了 monitoring"而不来。
+   ⚠️ **兜底必须查"整份缓存列表"，不能只查"当前选中的那个"** —— 这是第二次踩：
+   第一版只写了 `if _target != null and not is_instance_valid(_target)`，
+   而 `_target` 早就是 `null` 了、死掉的是**候选列表里那一项** → 兜底永远不触发 →
+   刷新逻辑再也不运行 → 提示框一直挂着"捡起 XX"，
+   调试打印还因为把死对象传给 `Node` 类型参数报
+   `Cannot convert argument 1 from Object to Object`。
+   正解：`for node in _candidates: if not is_instance_valid(node): 刷新`，
+   再加一句"没有目标就隐藏提示"的自愈。
 
 **判据**：报错行指向"赋值 / 取属性"而那个函数本身挑不出毛病时，**不要在那儿修** ——
 往上找"谁把已经死掉的节点交出来的"。`is_instance_valid()` 是唯一可信的存活判据
