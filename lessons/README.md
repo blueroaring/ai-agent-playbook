@@ -59,6 +59,8 @@
 | **定时任务到点没跑，却没有任何报错** | [02](02-windows-powershell51.md) 第 10 节 |
 | 探测返回空/报错，分不清"不存在"还是"查不到" | [01](01-verification-discipline.md) 事故 7 |
 | **写操作日志说成功，但数据没变** | [01](01-verification-discipline.md) 事故 8 |
+| **"保存"成功、重开工具却看不到改动（文件里其实是对的）** | [09](09-godot-automation.md) 第 19 节 |
+| **跑测试把真实数据/配置改坏了** | [01](01-verification-discipline.md) ②b |
 | **定时任务每天做同样的无用功，永远没新内容** | [01](01-verification-discipline.md) 事故 9 |
 | HTTPS 正常，但 SMTP 等非 HTTP 端口全部 TLS 超时 | [11](11-http-network-troubleshooting.md) 第 10 节 |
 | **把我给过系统的种子/样例又推荐回来** | [12](12-literature-source-apis.md) 第 10 节 |

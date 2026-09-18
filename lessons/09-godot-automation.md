@@ -729,3 +729,94 @@ Parse Error: Member "priority" redefined (original in native class 'Area2D')
 
 正解是抽一个 `_ordered_candidates()`（本例排序键 = `interact_priority` 降序 → 距离升序），
 其余全部读它。**"同一份数据被三处各自实现"是这类 UI 不一致的通用根因。**
+
+## 19. "存了却不留存"：先验写侧，再验读侧；断言要盯到**用户看得见的那一层** `[通病]`
+
+### 症状
+
+一个**开发工具**（带"保存"按钮的编辑器 / 生成器 / 配置界面）：
+拖好物件 → 保存 → 关掉 → 再打开，**看到的还是改动前的样子**；
+但打开落盘文件一看，内容明明已经写进去了。
+
+### 根因
+
+`_ready()` / 启动初始化里给内存对象填的是**空对象**（`Patch.new()`），
+文件只在用户**手动按了"重新载入"**时才读：
+
+```gdscript
+# 错：空补丁起手，只有 Ctrl+L 才读文件
+_patch = LayoutPatch.new()
+```
+
+于是"保存"这一侧从头到尾都是对的，**坏的是读这一侧**。
+它之所以藏得住，是因为"有保存按钮 + 有保存成功日志"会让人默认读也是对的 ——
+而**"打开就是原样"最容易被解释成"上次没存上"**，于是排查方向一开始就是反的。
+
+### 判据与解法
+
+1. **排查顺序写死**：先确认写侧到底有没有落盘（比字节数 / 哈希 / mtime），
+   再看读侧。本例最后一眼看穿的证据只是一句启动日志：`传入 patch=有（is_empty=true…）`。
+2. **初始化先读，再记一份"刚读进来时"的快照**，用它算脏否：
+
+   ```gdscript
+   _patch = LayoutPatch.load_from()
+   _saved_json = _patch.to_json()      # 存盘/重读成功后也要刷新它
+   func _is_dirty() -> bool: return _patch.to_json() != _saved_json
+   ```
+
+   ⚠️ 别用"手工置位的布尔量"——撤销 / 重读 / 清空某个分区都会**改或还原**内容，
+   布尔量要在五六处地方逐一维护，漏一处就骗人。
+   ⚠️ 也别用 `not _patch.is_empty()` 判断"有没有未保存改动"：文件里**本来就有内容**时，
+   一打开就报警，用户会以为工具自己动了文件。**"非空"和"脏"是两件事。**
+3. **断言要分三层，别用低层代替高层**：
+
+   | 层级 | 断言 | 证明了什么 |
+   |---|---|---|
+   | ① 读进来了 | 磁盘上有 N 条，内存里就有 N 条 | 文件读到了 |
+   | ② 生效了 | **运行时对象的位置 == 补丁里的目标值** | 数据接进去了 |
+   | ③ 画面对了 | 绘制层的坐标 == 同一份数据 | 用户看得见的那层对了 |
+
+   只断言 ① 是最常见的自欺：它证明"读到了"，不证明"生效了"。
+   本例真正管用的是 ② ——把补丁的 `to` 和清单里那一件的 `_base_tile` 对起来。
+4. **测试绝不许碰生产数据，而且要让工具自己拦**：
+
+   ```gdscript
+   var raw_before := _read_bytes(PATCH_PATH)     # 开头
+   ...                                           # 拖/删/增/撤销/存读往返全跑完
+   fails += _check(_read_bytes(PATCH_PATH) == raw_before, "整轮自检没动过 %s" % PATCH_PATH)
+   ```
+
+   这条是因为真出过事故：为了验证写的临时脚本，把用户手写的 11.9 KB 数据覆盖成了
+   698 字节的测试态（后来从备份恢复并核对哈希）。
+   **"记得先备份"是纪律，"自检自带字节比对"才是机制** —— 纪律会忘，机制会喊。
+
+### 验证
+
+- 启动自检里带上第 3 点的 ①② 两级断言，并**用用户那份真实数据跑一遍**
+  （不是自己造的干净样本）：本例实测 `磁盘移位 12 条 / 内存 12 条`、
+  `life|prop_spot:0|bench@22,22：补丁 (30,18)，清单 (30,18)`；
+- 跑完再比一次数据文件的哈希，确认完全没被动过。
+
+### 附：无头验逻辑 + 录帧验画面（不需要人工截图）
+
+```powershell
+# 逻辑：无头跑自检场景，判据取进程退出码
+$p = Start-Process -FilePath $godot -Wait -PassThru -NoNewWindow `
+     -ArgumentList '--headless','--path','.','res://tools/layout_editor.tscn',
+                   '--quit-after','300','--','--dsh-editor-selftest' `
+     -RedirectStandardOutput out.log -RedirectStandardError err.log
+$p.ExitCode      # 自检里 quit(0 if fails == 0 else 1)
+
+# 画面：Movie Maker 写 PNG 序列（不需要开窗口人工截），再裁一角放大看字
+& $godot --path . --fixed-fps 1 --write-movie .dsh_tmp/f.png --quit-after 3 res://tools/layout_editor.tscn
+```
+
+- ⚠️ **别用管道后的 `$LASTEXITCODE` 判自检成败**：
+  `& $godot … | Select-String …` 之后外层会报 `exit code 1`，而日志最后一行写着"全部通过"。
+  要么用 `Start-Process -PassThru` 取 `ExitCode`，要么**只认日志最后一行**。
+- `--headless` 下 `RenderingServer.frame_post_draw` **永不触发**、
+  `get_viewport().get_texture().get_image()` 也拿不到有效画面（dummy 渲染器），
+  所以"画面"这一层只能用上面的录帧方式验，别在无头里硬试。
+- 任何"用户输入会经过一层修正"的功能（拖动吸附到最近合法格、输入归一化、单位换算），
+  断言要针对**修正后的性质**（位置变了 + 落点合法 + 离目标不超过 N 格 + 尺寸/名字没丢），
+  不要针对**输入的字面值**（"精确等于目标格"）—— 那在有真实数据的场景里必然假红。
