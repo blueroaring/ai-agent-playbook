@@ -76,6 +76,7 @@
 | **`Trying to assign invalid previously freed instance`，报错行看着无害** | [09](09-godot-automation.md) 第 16 节 |
 | **捡走的东西离开场景再回来又出现了（还能刷出一堆）** | [09](09-godot-automation.md) 第 17 节 |
 | **提示框显示"[E] 查看 XX"，按了却没反应** | [09](09-godot-automation.md) 第 18.1 节 |
+| **"交互太多了"，离老远就弹提示** | [09](09-godot-automation.md) 第 18.1 节 |
 | **剧情里"锁住玩家"被某次普通交互顺手解开了** | [09](09-godot-automation.md) 第 18.2 节 |
 | **断言"够得到某个物件"该问"在不在候选里"还是"是不是当前目标"** | [09](09-godot-automation.md) 第 18.3 节 |
 
