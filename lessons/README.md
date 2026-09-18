@@ -70,6 +70,9 @@
 | `远程主机强迫关闭了一个现有的连接 (os error 10054)` | [14](14-upstream-model-capacity-vs-network.md) 第 3.2 节 |
 | 写配置时报 `model_providers contains reserved built-in provider IDs` | [14](14-upstream-model-capacity-vs-network.md) 第 3.2 节 |
 | **"肯定是上下文太大了" —— 但缩小输入问题依旧** | [14](14-upstream-model-capacity-vs-network.md) 第 2.4 节 |
+| **Godot：自定义 BBCode 效果完全不生效，且无报错** | [09](09-godot-automation.md) 第 15.1 节 |
+| **Godot：框画出来了，框里的图不见了** | [09](09-godot-automation.md) 第 15.2 节 |
+| **Godot：面板状态是"打开的"，屏幕上却什么都没有** | [09](09-godot-automation.md) 第 15.3 节 |
 
 ## 按主题读
 

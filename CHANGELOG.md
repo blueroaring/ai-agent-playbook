@@ -3,6 +3,41 @@
 本仓库由维护者的 Agent 定期（默认每 3 天）蒸馏 + 推送。只记"知识层面"的变化，
 不记机械同步。格式参考 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)（英文版可永久链接，中文版未做版本化）。
 
+## [0.14.0] - 2026-09-18
+
+同一个 Godot 2D 项目做 galgame 风格对话框（打字机逐字淡入、立绘、独立回顾面板）时，
+连踩三个**"代码全对、不报错、东西就是不在"**的坑。
+
+### 新增
+
+- `lessons/09` 新增第 15 节：**Godot 4 UI 的三个静默失效（挂上了 ≠ 在生效）**。
+  ① `RichTextEffect` 的虚函数在 Godot 4 是 `_process_custom_fx(char_fx)`，
+  按 Godot 3 的 `_process_effect(effect, range, char_fx)` 写就等于写了个没人调用的普通方法
+  —— 附"给效果加计数器当心跳"的判据；
+  ② 容器内的 `TextureRect` 若同时设 `expand_mode=IGNORE_SIZE` 与 `size_flags=SHRINK_*`，
+  会被容器按"最小尺寸 0×0"摆放 → 框在、图不在；
+  ③ `CanvasLayer.visible = false` 会连带藏掉同层的兄弟面板（`is_visible_in_tree()` 沿父链查），
+  表现是"状态是打开的、屏幕是空的" —— 正解是切一个 `Node2D` 子节点的 visible，
+  别拿 CanvasLayer.visible 当对话框开关。
+  三条都给"断言它真的在动 + 截图人工核对"的验证方式。
+
+## [0.13.0] - 2026-09-18
+
+同一个 Godot 2D 项目进入"把程序化地图换成真正的图块系统"阶段，
+踩到三类**只在做图块自动拼接时才会遇到**的坑。
+
+### 新增
+
+- `lessons/09` 新增第 12 节：**从「swatch 图集」派生可自动拼接的 terrain 图集**。
+  免费室内图集常是"整块墙带"（3 图块宽 × 2 图块高、四周一圈描边），
+  **没有任何一格是单边描边的边/角块** → 直接配 terrain 会拼出一圈圈重复描边。
+  记了派生生成器的做法（滑窗挑无描边材质底、取原图描边色、按四邻 16 种组合合成、
+  按"上方有没有墙"调明暗做厚度）。
+- `lessons/09` 新增第 13 节：**terrain peering bit 的下标是 `TileSet.CellNeighbor` 枚举**，
+  不是直觉顺序；给出"先赋 `terrain_set` 再 `is_valid_terrain_peering_bit()` 枚举"的判据，
+  以及 `add_terrain_set()` / `add_terrain()` 返回 void、地板的地形位要留空这两个易错点。
+- `lessons/09` 新增第 14 节：**沙箱里"文件操作失败"会伪装成"逻辑 bug"** ——
+  存档/设置/截图全红而逻辑正常时，先用独立命令确认进程有没有写 `user://` 的权限。
 ## [0.12.0] - 2026-09-17
 
 一个真实 Godot 2D 项目的首次落地里，**连续踩到五个"逻辑全对、画面全错"的坑**。

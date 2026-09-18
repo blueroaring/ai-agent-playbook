@@ -378,3 +378,189 @@ for hit in get_viewport().world_2d.direct_space_state.intersect_shape(q, 16):
 | **开场/剧情锁住移动后，交互键也按不动、玩家卡死** | [09](09-godot-automation.md) 第 9.5 节 |
 | 按交互键没反应、探测不到 NPC | 碰撞 **mask 位掩码**写错（层号 ≠ 掩码值） |
 
+
+---
+
+## 12. 从「swatch 图集」派生可自动拼接的 terrain 图集 `[通病]`
+
+### 症状
+
+拿一套看起来"就是室内图块"的图集（本例 LimeZu Modern Interiors 的 `Room_Builder_free_16x16.png`）
+直接切 16x16 建 TileSet、配 terrain 自动拼接。拼出来的墙**每一格都带一整圈深色描边**，
+相邻两格之间出现一道道竖线，转角处叠了两层边框。
+
+### 根因
+
+这类图集是**给 RPG Maker 用的"墙带"**，不是按边/角拆开的自动拼接块。实测逐格四边描边特征
+（`#` = 该边有深色描边）：
+
+| 列 | 上 | 右 | 下 | 左 | 含义 |
+|---|---|---|---|---|---|
+| 0-2 | # | (#) |  | # | 一堵墙的左端 |
+| 3 |  | # | # | # | 墙上的竖缝 / 端头 |
+| 4-6 |  |  |  | # | 中段（上下都不封边） |
+| 7-9 |  | (#) | # | # | 右段 |
+
+一堵"墙"是 **3 图块宽 × 2 图块高（48x32）** 的整块图形，**没有任何一格是"只描一条边"的边块或角块**。
+terrain 自动拼接的本质是"按格决定哪条边要描边"，所以这种素材必须**先派生成边/角块**才能用。
+
+### 解法：写一个幂等的生成器
+
+1. **取材**：在材质带里滑动一个 16x16 窗口，挑"暗行 + 暗列最少、左右边缘最接近"的那一块当材质底。
+   直接取某一格会把图集自己的描边带进来，于是**每一格墙都重复出现一条横线**。
+2. **描边色**：统计原图里"alpha>0.9 且亮度<0.3"的像素取平均，用素材自己的描边色，风格才统一。
+3. **合成**：枚举 4 个邻位的 16 种组合，**哪一边没有墙就在那一边描边**；再按"上方有没有墙"整体调明暗
+   （有 → 墙顶提亮；没有 → 墙侧压暗），2 图块厚的墙环才读得出厚度。
+4. 生成器写成 `godot --headless --script res://tools/build_tileset.gd` 可重复运行，产物入库；
+   布局与坐标同时写一份人读的 `tools/tileset_layout.md`。
+
+### 验证
+
+把 16 种组合**并排渲染成一张房间图**肉眼核对：四角是 L 形描边、直边只有一条描边、墙顶一行比墙侧亮。
+再在走查里断言"每一格墙块在 TileSet 物理层里都有碰撞多边形"。
+
+---
+
+## 13. terrain peering bit 的下标 = `TileSet.CellNeighbor` 枚举 `[通病]`
+
+### 症状
+
+```gdscript
+td.terrain_set = 0
+td.terrain = 0
+td.set_terrain_peering_bit(2, 0)   # 以为是"右边"
+```
+报 `Condition "!is_valid_terrain_peering_bit(p_peering_bit)" is true.`，而且**只有部分下标报错**。
+
+### 根因
+
+peering bit 的**下标用的是 `TileSet.CellNeighbor` 枚举值**，不是"0=上、1=右上、2=右…"那套顺序：
+
+| 模式 | 合法下标 | 含义 |
+|---|---|---|
+| `MATCH_SIDES` | `[0, 4, 8, 12]` | 0=RIGHT_SIDE, 4=BOTTOM_SIDE, 8=LEFT_SIDE, 12=TOP_SIDE |
+| `MATCH_CORNERS_AND_SIDES` | `[0,3,4,7,8,11,12,15]` | 再加 3=BOTTOM_RIGHT / 7=BOTTOM_LEFT / 11=TOP_LEFT / 15=TOP_RIGHT 角 |
+
+### 解法 / 判据
+
+**不要背，直接问引擎**：先给 `TileData.terrain_set` 赋值（不赋值时全部返回 false，会误判成"都不合法"），
+再逐个枚举：
+
+```gdscript
+var td := src.get_tile_data(Vector2i(0, 0), 0)
+td.terrain_set = tsid          # 必须先赋值
+var valid := []
+for i in 16:
+    if td.is_valid_terrain_peering_bit(i):
+        valid.append(i)
+```
+
+同类易错点：
+- `add_terrain_set(to_position)` 与 `add_terrain(set, to_position)` **返回 void**，
+  新 id 分别是 `get_terrain_sets_count() - 1` / `get_terrains_count(set) - 1`；
+  只有 `add_source(src, id)` 返回 id。
+- 用 terrain 铺地板时，把该地形那唯一一格的四邻 bit **全部留空（-1）**，
+  才会"铺到房间边界也不丢格"；每位都设成自己会要求邻居也是同地形，边界格直接匹配不上。
+- 一个 terrain 只放一格时，`set_cells_terrain_connect(cells, set, terrain)` 仍然只会挑该 terrain 的图块，
+  不会串到同 terrain 集里的其他地形。
+
+---
+
+## 14. 沙箱里"文件操作失败"会伪装成"逻辑 bug" `[本机]`
+
+### 症状
+
+跑一个带存档与截图的走查：逻辑断言全过，但**存档、设置持久化、截图落盘全红**，
+错误码是 `12`（`ERR_FILE_CANT_OPEN`），而同一份代码换一种启动方式就全绿。
+
+### 根因
+
+文件沙箱只允许写**会话工作区内**的路径。用 `pwsh` 启动的 Godot 继承了这个限制，
+于是它写 `user://`（Windows 上是 `%APPDATA%\Godot\app_userdata\<项目>\`）一律被拒。
+
+### 判据与解法
+
+- **先用一条独立命令确认沙箱边界**：直接在 `pwsh` 里往那个目录写一个文件，看是否被拒。
+  确认是环境问题再回去看代码，别改代码。
+- 需要验证**写文件**的行为时，用**不经 pwsh 的通道**（本例是 MCP 的 godot 工具）跑同一个走查。
+- 封装好的"运行项目"工具跑长流程时要**显式指定帧数上限**，
+  否则默认值会在过场动画播到一半把进程收掉，日志看起来像"跑完了但没结果"。
+
+---
+
+## 15. Godot 4 UI 的三个**静默失效**（挂上了 ≠ 在生效）`[通病]`
+
+做 galgame 风格对话框（打字机逐字淡入、立绘、独立回顾面板）时，一口气踩了三个
+**不报错、不崩溃、只是"东西不在"** 的坑。三者的共同点是：**代码看起来全都对**，
+只有"断言它真的在动 / 真的画出来"才能发现。
+
+### 15.1 `RichTextEffect` 的虚函数名在 Godot 4 变了
+
+**症状**：自定义 `[rise]` 逐字上浮效果 —— `custom_effects` 里确实有这个 effect 对象，
+文本也写了 `[rise]…[/rise]`，但动画完全不出现；**没有任何报错**。
+
+**根因**：Godot 3 的虚函数是 `_process_effect(effect, range, char_fx)`；
+**Godot 4 改成了 `_process_custom_fx(char_fx)`**（`GDVIRTUAL_BIND(_process_custom_fx, "char_fx")`）。
+按旧签名写的方法就是个普通方法，引擎永远不会调用它 —— 而且因为签名不同，
+连"未使用参数"之类的警告都不会有。
+
+另外：BBCode 标签名取自 effect 的 `bbcode` 属性，取不到时**回退到脚本文件名**；
+`CharFXTransform` 在 Godot 4 里只有 `relative_index`（没有 `absolute_index`），
+把整段文本用一个标签包起来时它等价于全文下标。
+
+**解法**：写对签名，并**给效果加一个自增计数器**当"心跳"：
+
+```gdscript
+func _process_custom_fx(char_fx: CharFXTransform) -> bool:
+    calls += 1                     # 诊断：为 0 = 引擎根本没调用
+    ...
+    applied_chars += 1             # 诊断：真的改动过字符的次数
+    return true
+```
+
+**验证**：走查里断言 `applied_chars > 0`（并附带打印 `calls`）。
+"调用=0" 直接指向签名/标签名问题，"调用>0 但 改动=0" 才是逻辑问题。
+**别只断言 `custom_effects.has(effect)`** —— 那只证明"挂上了"。
+
+### 15.2 容器里的 `TextureRect` 会**整块消失**
+
+**症状**：立绘框（`PanelContainer`）画出来了，框里**什么都没有**；
+代码里 `texture` 明明不是 null（断言也过了）。
+
+**根因**：`TextureRect` 设了 `expand_mode = IGNORE_SIZE`（最小尺寸=0）**又**设了
+`size_flags_vertical = SHRINK_CENTER`。容器摆子节点走的是 `fit_child_in_rect()`：
+**没有 `SIZE_FILL` 的子节点只拿到自己的最小尺寸** —— 于是宽高变成 0×0。
+
+**解法**：容器内的 `TextureRect` 不要设 `SHRINK_*`（保持默认的 `FILL`），
+只在"外层框"上设 `SHRINK_CENTER` 让它按 `custom_minimum_size` 居中。
+像素素材要清晰就顺带把框做成**整数倍**（64px 头像 → 192px 内区 = 3×）。
+
+**验证**：走查里断言 `box_rect()` 之类的**几何**（框在屏幕上的实际矩形），
+再配一张人工核对的截图 —— "状态对但画面空"是这类坑的唯一破绽。
+
+### 15.3 `CanvasLayer.visible = false` 会连带藏掉同一层的子面板
+
+**症状**：对话回顾（Backlog）面板"能打开"—— `is_log_open()` 返回 true、
+子节点 `visible` 也是 true、内容也渲染了 —— **但屏幕上什么都没有**。
+
+**根因**：为了隐藏对话框，`hide_box()` 里写了 `visible = false`（`CanvasLayer`）。
+而回顾面板是**同一个 CanvasLayer 的子节点**，于是被一起藏了。
+`CanvasLayer.is_visible_in_tree()` 会**沿父链找 CanvasLayer**，所以"给面板单独开一个
+子 CanvasLayer"也救不了；连"打开面板时把父层重新 visible"都容易漏。
+
+**解法**：**别用 CanvasLayer.visible 当"对话框开关"**。把对话框本体（背景/渐变框/
+立绘/选项）全部塞进一个 `Node2D` 子节点（例：`BoxRoot`），
+`show_box()/hide_box()` 只切这个子节点的 `visible`；
+回顾面板挂在 CanvasLayer 下当它的兄弟。`is_active()` 之类的**逻辑状态**照旧单独维护。
+
+**验证**：走查里"开面板 → 断言状态 → **截一张图** → 关面板"，截图是唯一能揭穿它的东西
+（状态断言会一路绿灯）。
+
+### 速查
+
+| 现象 | 一句话判据 |
+|---|---|
+| BBCode 自定义效果完全不动 | 虚函数必须是 Godot 4 的 `_process_custom_fx(char_fx)`；加计数器当心跳 |
+| 框在、图不在 | 容器内 `SHRINK_*` + `IGNORE_SIZE` → 子节点 0×0；容器内保持 `FILL` |
+| "状态是开的，屏幕是空的" | 是不是把整个 `CanvasLayer.visible` 关掉了，连带藏了兄弟面板 |
+| 想确认"效果真的在跑" | 让效果**自己数数**，断言计数 > 0，而不是断言"对象挂上了" |
