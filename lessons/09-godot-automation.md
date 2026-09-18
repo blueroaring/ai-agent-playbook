@@ -706,3 +706,26 @@ func end_dialogue_lock(was_moving: bool, force_unlock: bool = false) -> void
   别指望"传送到旁边就一定是它"—— 很多引擎会**保留玩家手动切过的目标**，陈旧目标会一直粘着。
 
 配套：给 Player 加一个 `debug_candidate_names()` 比去断言内部数组省事得多。
+
+### 18.4 给节点加字段前先查**原生同名成员**；候选顺序要**只留一处**
+
+**① 撞名会直接编译失败。** 想给"可交互物"加一个交互排位，顺手写了
+`@export var priority: int = 0` —— 编译报：
+
+```
+Parse Error: Member "priority" redefined (original in native class 'Area2D')
+```
+
+因为 `Area2D` 原生就有 `priority`（物理处理顺序）。同理容易撞的还有
+`CollisionObject2D` 系的一堆属性（`layer`/`mask`/`input_pickable`…）、
+`Node` 的 `name`/`owner`/`process_mode`、`CanvasItem` 的 `visible`/`modulate`/`z_index`。
+**命名前先在文档里搜一下**；已经撞了就换个前缀（本例改成 `interact_priority`），
+别去覆盖原生语义。
+
+**② "默认目标 / Tab 轮换顺序 / 提示里的 n/m 计数"必须是同一份排序。**
+这三处原来各写了一遍排序（还都是"纯按距离"），于是：
+- 玩家站在床边时，"剧情上该先拿的手机"被挤到第二位，得先按 Tab（用户原话"很反直觉"）；
+- 三处一旦不同步，还会出现"显示 1/2 但 Tab 出来的不是那个"。
+
+正解是抽一个 `_ordered_candidates()`（本例排序键 = `interact_priority` 降序 → 距离升序），
+其余全部读它。**"同一份数据被三处各自实现"是这类 UI 不一致的通用根因。**

@@ -79,6 +79,8 @@
 | **"交互太多了"，离老远就弹提示** | [09](09-godot-automation.md) 第 18.1 节 |
 | **剧情里"锁住玩家"被某次普通交互顺手解开了** | [09](09-godot-automation.md) 第 18.2 节 |
 | **断言"够得到某个物件"该问"在不在候选里"还是"是不是当前目标"** | [09](09-godot-automation.md) 第 18.3 节 |
+| **`Member "x" redefined (original in native class ...)`** | [09](09-godot-automation.md) 第 18.4 节 |
+| **"默认选中的那个"和"Tab 列表里的顺序"对不上** | [09](09-godot-automation.md) 第 18.4 节 |
 
 ## 按主题读
 
