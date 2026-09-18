@@ -74,6 +74,7 @@
 | **Godot：框画出来了，框里的图不见了** | [09](09-godot-automation.md) 第 15.2 节 |
 | **Godot：面板状态是"打开的"，屏幕上却什么都没有** | [09](09-godot-automation.md) 第 15.3 节 |
 | **`Trying to assign invalid previously freed instance`，报错行看着无害** | [09](09-godot-automation.md) 第 16 节 |
+| **捡走的东西离开场景再回来又出现了（还能刷出一堆）** | [09](09-godot-automation.md) 第 17 节 |
 
 ## 按主题读
 
