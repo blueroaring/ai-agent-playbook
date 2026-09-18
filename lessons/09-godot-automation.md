@@ -564,3 +564,42 @@ func _process_custom_fx(char_fx: CharFXTransform) -> bool:
 | 框在、图不在 | 容器内 `SHRINK_*` + `IGNORE_SIZE` → 子节点 0×0；容器内保持 `FILL` |
 | "状态是开的，屏幕是空的" | 是不是把整个 `CanvasLayer.visible` 关掉了，连带藏了兄弟面板 |
 | 想确认"效果真的在跑" | 让效果**自己数数**，断言计数 > 0，而不是断言"对象挂上了" |
+
+---
+
+## 16. "已释放实例"会**跨函数边界**传播，报错点却在调用方 `[通病]`
+
+**症状**：走查随机报一句
+`SCRIPT ERROR: Trying to assign invalid previously freed instance.`，
+`at:` 指向一个**看起来完全无害**的调试函数：
+
+```gdscript
+func current_target_name() -> String:
+    var target: Node = player.call("debug_current_target")   # ← 报错在这一行
+```
+
+被指向的函数自己一行都没错，改它、给它加 `if target == null` 都没用。
+
+**根因**：Godot 里对象被 `queue_free()` 之后，引用它的变量会变成"已释放实例"
+（**它 `!= null`**）。把这个引用**赋值给带类型的变量**（`var target: Node = ...`）时
+才报错 —— 也就是说错误发生在"跨越边界"的那一刻，而不是产生悬空引用的地方。
+更阴的是：悬空引用常常是**引擎机制**造成的，不是谁写错了指针：
+
+- 采集物 `queue_free()` 前把自己 `monitoring = false`，于是玩家**收不到 `area_exited`**，
+  缓存的"当前交互目标"永远是那个已死的节点（提示框一直挂着"捡起 XX"）；
+- 在 `await` 之后的收尾代码里 `queue_free()` 自己，基类紧接着还要写一句
+  `_busy = false` → 直接打在已释放实例上。
+
+**解法（三条一起上）**：
+
+1. **调试/查询 API 返回"值"而不是"对象"**：`debug_current_target_name() -> String`
+   而不是 `-> Node`。字符串跨边界永远安全，报错路径从根上断掉。
+2. **销毁前先断链路**：采集物要先把 `monitoring/monitorable` 关掉、隐藏自己，
+   把**真正的 `queue_free()` 交给 `SceneTree` 的计时器**（`tree.create_timer(0.05)`），
+   不要在自己还处在 `await` 调用栈里时销毁自己。
+3. **持有方每帧做一次 `is_instance_valid()` 兜底**：靠信号（`area_exited`）是不可靠的，
+   信号会因为"你自己关了 monitoring"而不来。一行`if x != null and not is_instance_valid(x)` 就够。
+
+**判据**：报错行指向"赋值 / 取属性"而那个函数本身挑不出毛病时，**不要在那儿修** ——
+往上找"谁把已经死掉的节点交出来的"。`is_instance_valid()` 是唯一可信的存活判据
+（`!= null` 对已释放实例返回 true，是最大的陷阱）。
