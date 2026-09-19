@@ -62,6 +62,8 @@
 | **"保存"成功、重开工具却看不到改动（文件里其实是对的）** | [09](09-godot-automation.md) 第 19 节 |
 | **跑测试把真实数据/配置改坏了** | [01](01-verification-discipline.md) ②b |
 | **定时任务每天做同样的无用功，永远没新内容** | [01](01-verification-discipline.md) 事故 9 |
+| **"下次会自动重试"的队列，东西却一直卡着没重试** | [01](01-verification-discipline.md) 事故 9 续集 |
+| **用户反复问"为什么今天又没收到/没跑/没通知"** | [01](01-verification-discipline.md) 事故 10 |
 | HTTPS 正常，但 SMTP 等非 HTTP 端口全部 TLS 超时 | [11](11-http-network-troubleshooting.md) 第 10 节 |
 | **把我给过系统的种子/样例又推荐回来** | [12](12-literature-source-apis.md) 第 10 节 |
 | 服务端 404，但文件明明在磁盘上（名字含中文/空格） | [12](12-literature-source-apis.md) 第 9 节 |
