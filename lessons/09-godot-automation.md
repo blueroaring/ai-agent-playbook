@@ -183,6 +183,29 @@ Get-Process -Id <上面的 PID> | Select-Object Name,Path
   （→ [02](02-windows-powershell51.md) 第 6 节）
 - **没有项目时先建一个示例项目**：用来验证"能力真的通了"，
   比在用户的正式项目上试错安全得多
+- ⚠️ **一行 GDScript 解析错误 = 无头运行"零输出 + 看起来像卡死"** `[通病]`
+  （实测踩过两次，每次都白等好几分钟）：
+  · **症状**：`godot --headless --path . 某测试场景.tscn`（或用 `--dsh-autotest=...`）
+    迟迟不返回，最后**超时被杀**，stdout 一个字节都没有，看起来像"场景加载卡住了"
+    或"引擎挂死"。同一时刻**别的**测试场景照常跑完 —— 更加深了误判。
+  · **根因**：被运行的那个脚本**解析失败**（`GDScript::reload` 里 `Parse Error`）时，
+    引擎在**加载阶段**就退回/退出，脚本的 `_ready()` 一行都不会执行 ——
+    于是没有任何 `print`，进程也不一定立刻返回（取决于是否还有别的活动场景）。
+    典型触发：`var x := await something_that_returns_null()`（
+    `Cannot infer the type of "x" variable because the value is "null"`）。
+  · **判据（30 秒内定性，不要再等超时）**：怀疑"卡死"时**立刻**用 `--quit-after`
+    跑一次，把 stderr 逼出来：
+    ```powershell
+    & godot --headless --path . --quit-after 120 tools/xxx.tscn 2>&1 | Select-Object -First 30
+    ```
+    解析错误会以 `SCRIPT ERROR: Parse Error: ... at: GDScript::reload (res://...)` 出现。
+    ⚠️ 光把输出重定向进文件**看不到**（见下一条），`2>&1 |` 直接过一遍才行。
+  · **同族坑：重定向到文件 = 0 字节**。用 `*> file`（PowerShell 里相当于把 stdout/stderr
+    都吃掉）时，只要脚本在解析期就挂了，文件会**真的是空的**——而"空文件"和"卡死在写之前"
+    在现象上完全一样。**别用"日志文件是空的"当'没输出'的证据**，要单独跑一次直接看。
+  · **顺带**：临时文件（点号目录下的探针）写了 `extends Node2D` 之后要**真跑一次**再依赖它 ——
+    探针脚本本身写错，比没写更浪费时间（它看起来"很权威"）。
+
 - **Steam 版路径**：可执行文件在 Steam 库目录下，路径含空格 → **引号别漏**，
   且这类"工作区外的可执行文件"在受限沙箱里可能被拒（→ [03](03-sandbox-stdio-limits.md)），
   所以应当**由宿主侧的 MCP 服务去调用它**
