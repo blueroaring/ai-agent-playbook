@@ -183,6 +183,38 @@ Get-Process -Id <上面的 PID> | Select-Object Name,Path
   （→ [02](02-windows-powershell51.md) 第 6 节）
 - **没有项目时先建一个示例项目**：用来验证"能力真的通了"，
   比在用户的正式项目上试错安全得多
+- ⚠️⚠️ **`class_name` 上的静态方法会被基类同名成员**静默**顶掉** `[通病]`
+  （实测：一个"改了台词不生效"的用户报障，追到根因就是这一条）：
+  · **症状**：自己写的静态方法**一次都没被调用**，调用点那一行只多一条
+    `ERROR: Cannot reload script while instances exist.` —— 出现在"保存成功"之后，
+    极容易被当成无关噪音忽略；功能上表现为"在编辑器里存了盘，正在跑的游戏里不生效"
+    （必须重启进程）。
+  · **根因**：GDScript 的 `class_name X extends RefCounted` 之后，`X` **本身就是一个
+    `GDScript` 对象**，而 `GDScript` 继承自 `Script`。`Script` 已经有一批内建方法
+    （`reload()`、`get_source_code()`、`can_instantiate()`…）。
+    写 `X.reload()` 时解析到的是**内建那个**（重新加载脚本），不是你的静态函数。
+  · **判据**：调用"自己的静态方法"却看到与语义无关的引擎错误、或断点/`print` 从不出现，
+    就先怀疑撞名：
+    ```gdscript
+    print(ClassDB.class_has_method("Script", "reload"))   # true ← 撞名了
+    ```
+  · **解法**：改成语义更窄的名字（`reload_from_disk()` / `refresh_cache()`），
+    **别叫 `reload` / `new` / `free` / `call` 这些基类已有的名字**；
+    新加静态方法前先在引擎文档里搜一眼 `Script` 的方法表。
+  · **验证**：改名后同一条测试从"缓存不刷新"变成"立刻生效"（本例：
+    内存覆盖一层台词 → 断言游戏里读到的是覆盖版 → 再读盘回到原样）。
+
+- ⚠️ **不要用 PowerShell 的 `Set-Content`/`-replace` 改写仓库里的文本文件** `[本机]`
+  （实测把两个 `.gd` 的中文写成了乱码，只能 `git checkout` 重做）：
+  · Windows PowerShell 5.1 的 `Get-Content` 默认按 **ANSI/GBK** 读 UTF-8 文件，
+    再 `Set-Content -Encoding utf8` 写回去就是**双重转码**：
+    `好奇` → `濂藉` 这种典型乱码，而且**文件在编辑器/引擎里才看得出来**，
+    命令行 `Select-String` 可能因为同样的编码问题显示"正常"。
+  · 顺带还有两个副作用：写 BOM（GDScript/JSON 不希望有）、
+    以及 `-NoNewline` 会把原本的结尾空行吃掉（`git diff` 显示"整文件 84 行新增"）。
+  · **规矩**：改已有文本文件一律用**文件工具**（`read` + `edit`），
+    PowerShell 只用来**跑命令**。批量替换交给专用工具，不要把 shell 当编辑器，
+    尤其别对**非 ASCII 内容**的仓库这么做。
 - ⚠️ **一行 GDScript 解析错误 = 无头运行"零输出 + 看起来像卡死"** `[通病]`
   （实测踩过两次，每次都白等好几分钟）：
   · **症状**：`godot --headless --path . 某测试场景.tscn`（或用 `--dsh-autotest=...`）

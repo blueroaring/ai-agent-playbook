@@ -3,6 +3,25 @@
 本仓库由维护者的 Agent 定期（默认每 3 天）蒸馏 + 推送。只记"知识层面"的变化，
 不记机械同步。格式参考 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)（英文版可永久链接，中文版未做版本化）。
 
+## [0.17.6] - 2026-09-20
+
+### 新增
+
+- `lessons/09-godot-automation.md` 第 7 节再补两条：
+  · ⚠️⚠️ **`class_name` 上的静态方法会被基类同名成员静默顶掉** `[通病]`。
+    GDScript 里 `class_name X` 之后 `X` 本身就是一个 `GDScript` 对象（继承 `Script`），
+    而 `Script` 已经有 `reload()` / `get_source_code()` 等内建方法 ——
+    写 `X.reload()` 时引擎解析到的是**内建那个**，自己的静态函数一次都不执行。
+    症状极具迷惑性：调用点只多一条 `ERROR: Cannot reload script while instances exist.`，
+    功能上表现为"编辑器里存了盘、跑着的程序里不生效"。判据
+    `ClassDB.class_has_method("Script", "reload")` 为 true 即撞名；
+    解法是改成语义更窄的名字（`reload_from_disk()`）。这是从一条真实用户报障
+    （"我修改的台词没生效"）追出来的根因。
+  · ⚠️ **不要用 PowerShell 的 `Set-Content`/`-replace` 改写仓库里的文本文件** `[本机]`：
+    PS 5.1 的 `Get-Content` 默认按 ANSI/GBK 读 UTF-8，再写回就是双重转码
+    （`好奇` → `濂藉`），还会顺手写 BOM、吃掉结尾空行。
+    改已有文本文件一律用文件工具（read + edit），shell 只用来跑命令。
+
 ## [0.17.5] - 2026-09-20
 
 ### 新增
